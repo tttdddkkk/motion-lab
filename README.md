@@ -35,8 +35,11 @@
 | Node | `.node-version` | CI とローカルで揃える |
 
 ### あえて入れていないもの
-- Renovate: 依存が少なく、Dependabot で足りるため
-- 更新 PR の自動マージ: マージ前チェックの必須化（branch protection）がまだ無いため
+
+判断の経緯は [docs/adr/](docs/adr/) を参照。
+
+- Renovate: 依存が少なく、Dependabot で足りるため（ADR 0004）
+- 更新 PR の自動マージ: 未導入。マージ前チェックの必須化は済んでいる（ADR 0004 / 0006）
 - Storybook の利用統計: `.storybook/main.js` の `disableTelemetry` で無効化している
 
 ## 公開URL
