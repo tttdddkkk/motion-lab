@@ -1,0 +1,28 @@
+/* ビューアと Storybook で共有するトークンとデモ用スタイル */
+:root {
+  --bg: #101216;
+  --panel: #181b21;
+  --line: #272b33;
+  --text: #e8eaee;
+  --sub: #9097a3;
+  --accent: #6ea8ff;
+  --accent-2: #8f7bff;
+  --radius: 14px;
+  color-scheme: dark;
+}
+
+.stage { position: absolute; inset: 0; display: grid; place-items: center; }
+
+.demo-btn {
+  position: relative; overflow: hidden; border: 0; border-radius: 14px;
+  padding: 14px 32px; font-weight: 700; font-size: 16px;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #0b1220;
+  -webkit-tap-highlight-color: transparent; user-select: none;
+}
+.ripple { position: absolute; border-radius: 50%; background: #fff; pointer-events: none; opacity: 0; }
+.screen { position: absolute; inset: 0; padding: 56px 20px 20px; display: grid; align-content: start; gap: 12px; }
+.screen h3 { margin: 0 0 4px; font-size: 20px; }
+.screen .row { height: 54px; border-radius: 12px; background: rgba(255,255,255,.08); }
+.screen.a { background: #151a24; }
+.screen.b { background: linear-gradient(160deg, #3b5bdb, #7a4dd8); }
+.screen.b .hero { height: 140px; border-radius: 16px; background: rgba(255,255,255,.2); }

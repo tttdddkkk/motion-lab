@@ -1,0 +1,35 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: Asia/Tokyo
+    # 公開直後に乗っ取り・撤回されたバージョンを掴まないよう、数日寝かせてから取り込む。
+    # 脆弱性修正（security updates）にはこの待ちはかからない。
+    cooldown:
+      default-days: 7
+      semver-major-days: 14
+    groups:
+      # バージョンを揃えないと peer dependency が壊れるため、メジャーも含めて同じ PR にまとめる
+      storybook:
+        patterns: ["storybook", "@storybook/*"]
+      vitest:
+        patterns: ["vitest", "@vitest/*"]
+      minor-and-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: Asia/Tokyo
+    cooldown:
+      default-days: 7
+    groups:
+      actions:
+        patterns: ["*"]
