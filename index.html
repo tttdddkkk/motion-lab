@@ -1,0 +1,460 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Motion Lab</title>
+<style>
+  :root {
+    --bg: #101216;
+    --panel: #181b21;
+    --line: #272b33;
+    --text: #e8eaee;
+    --sub: #9097a3;
+    --accent: #6ea8ff;
+    --accent-2: #8f7bff;
+    --radius: 14px;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); }
+  body { font: 14px/1.6 system-ui, -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif; }
+  button { font: inherit; color: inherit; cursor: pointer; }
+
+  .app { display: grid; grid-template-columns: 260px 1fr; min-height: 100vh; }
+  @media (max-width: 820px) { .app { grid-template-columns: 1fr; } }
+
+  /* sidebar */
+  aside { border-right: 1px solid var(--line); padding: 20px 16px; background: var(--panel); }
+  @media (max-width: 820px) { aside { border-right: 0; border-bottom: 1px solid var(--line); } }
+  .brand { font-weight: 700; letter-spacing: .08em; margin: 0 0 16px; }
+  .brand small { display: block; font-weight: 400; color: var(--sub); letter-spacing: 0; }
+  .filters { display: flex; gap: 6px; margin-bottom: 12px; }
+  .chip {
+    border: 1px solid var(--line); background: transparent; border-radius: 999px;
+    padding: 4px 12px; color: var(--sub);
+  }
+  .chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #0b1220; font-weight: 600; }
+  .list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+  .list button {
+    width: 100%; text-align: left; background: transparent; border: 1px solid transparent;
+    border-radius: 10px; padding: 8px 10px;
+  }
+  .list button:hover { background: #20242c; }
+  .list button[aria-current="true"] { background: #222836; border-color: #31405f; }
+  .list .meta { display: block; color: var(--sub); font-size: 12px; }
+
+  /* main */
+  main { padding: 24px; display: grid; gap: 20px; align-content: start; max-width: 960px; }
+  h1 { font-size: 20px; margin: 0; }
+  .desc { color: var(--sub); margin: 4px 0 0; }
+
+  .stage-wrap { display: grid; grid-template-columns: auto 1fr; gap: 24px; align-items: start; }
+  @media (max-width: 820px) { .stage-wrap { grid-template-columns: 1fr; justify-items: center; } main { padding: 16px; } }
+
+  .phone {
+    width: 260px; height: 480px; border-radius: 34px; border: 6px solid #2c313b;
+    background: #0b0d11; position: relative; overflow: hidden;
+    box-shadow: 0 20px 50px rgba(0,0,0,.45);
+  }
+  .stage { position: absolute; inset: 0; display: grid; place-items: center; }
+
+  .side { display: grid; gap: 16px; align-content: start; width: 100%; }
+  .controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  .play {
+    background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #0b1220;
+    border: 0; border-radius: 10px; padding: 8px 18px; font-weight: 700;
+  }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .seg button { background: transparent; border: 0; padding: 6px 12px; color: var(--sub); }
+  .seg button[aria-pressed="true"] { background: #2a3040; color: var(--text); }
+  label.check { display: inline-flex; gap: 6px; align-items: center; color: var(--sub); }
+
+  dl.facts { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; margin: 0; }
+  dl.facts dt { color: var(--sub); }
+  dl.facts dd { margin: 0; font-variant-numeric: tabular-nums; }
+  code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+  /* code */
+  .codebox { border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); overflow: hidden; }
+  .codehead { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--line); padding: 6px 8px; }
+  .copy { background: transparent; border: 1px solid var(--line); border-radius: 8px; padding: 4px 10px; color: var(--sub); }
+  pre { margin: 0; padding: 14px 16px; overflow: auto; font-size: 12.5px; line-height: 1.65; max-height: 360px; }
+
+  /* ---------- demo styles ---------- */
+  .demo-btn {
+    position: relative; overflow: hidden; border: 0; border-radius: 14px;
+    padding: 14px 32px; font-weight: 700; font-size: 16px;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #0b1220;
+    -webkit-tap-highlight-color: transparent; user-select: none;
+  }
+  .ripple { position: absolute; border-radius: 50%; background: #fff; pointer-events: none; opacity: 0; }
+  .screen { position: absolute; inset: 0; padding: 56px 20px 20px; display: grid; align-content: start; gap: 12px; }
+  .screen h3 { margin: 0 0 4px; font-size: 20px; }
+  .screen .row { height: 54px; border-radius: 12px; background: rgba(255,255,255,.08); }
+  .screen.a { background: #151a24; }
+  .screen.b { background: linear-gradient(160deg, #3b5bdb, #7a4dd8); }
+  .screen.b .hero { height: 140px; border-radius: 16px; background: rgba(255,255,255,.2); }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside>
+    <p class="brand">MOTION LAB<small>自分用モーションライブラリ</small></p>
+    <div class="filters" id="filters"></div>
+    <ul class="list" id="list"></ul>
+  </aside>
+
+  <main>
+    <header>
+      <h1 id="title"></h1>
+      <p class="desc" id="desc"></p>
+    </header>
+
+    <section class="stage-wrap">
+      <div class="phone"><div class="stage" id="stage"></div></div>
+
+      <div class="side">
+        <div class="controls">
+          <button class="play" id="play">▶ 再生</button>
+          <div class="seg" id="speed" role="group" aria-label="再生速度"></div>
+          <label class="check"><input type="checkbox" id="loop" checked> ループ</label>
+          <label class="check"><input type="checkbox" id="reduced"> 動きを減らす</label>
+        </div>
+        <dl class="facts" id="facts"></dl>
+      </div>
+    </section>
+
+    <section class="codebox">
+      <div class="codehead">
+        <div class="seg" id="tabs" role="tablist"></div>
+        <button class="copy" id="copy">コピー</button>
+      </div>
+      <pre><code id="code"></code></pre>
+    </section>
+  </main>
+</div>
+
+<script>
+/* ============================================================
+   モーション定義（1モーション = 1オブジェクト）
+   追加するときは MOTIONS に1つ足すだけ。
+   setup(stage, ctx) -> { run(x?, y?) : Promise }
+   ctx.dur(ms)    再生速度を反映した時間
+   ctx.reduced()  「動きを減らす」がONか
+   ============================================================ */
+const MOTIONS = [
+  {
+    id: 'press-bounce',
+    cat: 'button',
+    name: '押下バウンス',
+    feel: '弾む・軽快',
+    use: '主要ボタン / タップ',
+    ms: 450,
+    easing: 'cubic-bezier(.34, 1.56, .64, 1)',
+    desc: '押すと少し沈み、離すとオーバーシュートして戻る。',
+    setup(stage, ctx) {
+      stage.innerHTML = '<button class="demo-btn">購入する</button>';
+      const btn = stage.firstElementChild;
+      const run = () => {
+        if (ctx.reduced()) {
+          return btn.animate(
+            [{ opacity: 1 }, { opacity: .6 }, { opacity: 1 }],
+            { duration: ctx.dur(240) }
+          ).finished;
+        }
+        return btn.animate([
+          { transform: 'scale(1)',   easing: 'cubic-bezier(.2, 0, 0, 1)' },
+          { transform: 'scale(.94)', offset: .25, easing: 'cubic-bezier(.34, 1.56, .64, 1)' },
+          { transform: 'scale(1)' }
+        ], { duration: ctx.dur(450) }).finished;
+      };
+      btn.addEventListener('click', run);
+      return { run };
+    },
+    code: {
+      css: `.btn {
+  transition: transform .45s cubic-bezier(.34, 1.56, .64, 1);
+}
+.btn:active {
+  transform: scale(.94);
+  transition-duration: .1s; /* 沈むのは速く、戻りはゆっくり */
+}`,
+      waapi: `btn.addEventListener('click', () => {
+  btn.animate([
+    { transform: 'scale(1)',   easing: 'cubic-bezier(.2, 0, 0, 1)' },
+    { transform: 'scale(.94)', offset: .25,
+      easing: 'cubic-bezier(.34, 1.56, .64, 1)' },
+    { transform: 'scale(1)' }
+  ], { duration: 450 });
+});`,
+      reduced: `@media (prefers-reduced-motion: reduce) {
+  .btn { transition: opacity .15s linear; }
+  .btn:active { transform: none; opacity: .6; }
+}`
+    }
+  },
+
+  {
+    id: 'ripple',
+    cat: 'button',
+    name: 'リップル',
+    feel: 'なめらか・触覚的',
+    use: 'タップ位置の強調',
+    ms: 600,
+    easing: 'cubic-bezier(.2, 0, 0, 1)',
+    desc: 'タップした位置から波紋が広がって消える。',
+    setup(stage, ctx) {
+      stage.innerHTML = '<button class="demo-btn">タップしてね</button>';
+      const btn = stage.firstElementChild;
+      const run = (x, y) => {
+        const r = btn.getBoundingClientRect();
+        const cx = x ?? r.width / 2, cy = y ?? r.height / 2;
+        const size = Math.max(r.width, r.height) * 2.2;
+        const dot = document.createElement('span');
+        dot.className = 'ripple';
+        Object.assign(dot.style, {
+          width: size + 'px', height: size + 'px',
+          left: cx - size / 2 + 'px', top: cy - size / 2 + 'px'
+        });
+        btn.appendChild(dot);
+        const frames = ctx.reduced()
+          ? [{ opacity: .3 }, { opacity: 0 }]
+          : [{ transform: 'scale(0)', opacity: .35 }, { transform: 'scale(1)', opacity: 0 }];
+        const a = dot.animate(frames, {
+          duration: ctx.dur(ctx.reduced() ? 250 : 600),
+          easing: 'cubic-bezier(.2, 0, 0, 1)'
+        });
+        return a.finished.then(() => dot.remove());
+      };
+      btn.addEventListener('click', e => {
+        const r = btn.getBoundingClientRect();
+        run(e.clientX - r.left, e.clientY - r.top);
+      });
+      return { run: () => run() };
+    },
+    code: {
+      css: `.btn { position: relative; overflow: hidden; }
+.ripple {
+  position: absolute; border-radius: 50%;
+  background: #fff; opacity: 0; pointer-events: none;
+  animation: ripple .6s cubic-bezier(.2, 0, 0, 1);
+}
+@keyframes ripple {
+  from { transform: scale(0); opacity: .35; }
+  to   { transform: scale(1); opacity: 0; }
+}`,
+      waapi: `btn.addEventListener('click', e => {
+  const r = btn.getBoundingClientRect();
+  const size = Math.max(r.width, r.height) * 2.2;
+  const dot = document.createElement('span');
+  dot.className = 'ripple';
+  Object.assign(dot.style, {
+    width: size + 'px', height: size + 'px',
+    left: e.clientX - r.left - size / 2 + 'px',
+    top:  e.clientY - r.top  - size / 2 + 'px'
+  });
+  btn.appendChild(dot);
+  dot.animate(
+    [{ transform: 'scale(0)', opacity: .35 },
+     { transform: 'scale(1)', opacity: 0 }],
+    { duration: 600, easing: 'cubic-bezier(.2, 0, 0, 1)' }
+  ).finished.then(() => dot.remove());
+});`,
+      reduced: `@media (prefers-reduced-motion: reduce) {
+  .ripple { animation: ripple-fade .25s linear; }
+}
+@keyframes ripple-fade {
+  from { transform: scale(1); opacity: .3; }
+  to   { transform: scale(1); opacity: 0; }
+}`
+    }
+  },
+
+  {
+    id: 'circle-reveal',
+    cat: 'transition',
+    name: '円形リヴィール',
+    feel: '力強い・展開',
+    use: '画面遷移 / 詳細表示',
+    ms: 700,
+    easing: 'cubic-bezier(.65, 0, .35, 1)',
+    desc: '画面下部から円形に広がって次の画面に切り替わる。',
+    setup(stage, ctx) {
+      const origin = '50% 88%';
+      stage.innerHTML = `
+        <div class="screen a">
+          <h3>一覧</h3>
+          <div class="row"></div><div class="row"></div><div class="row"></div><div class="row"></div>
+        </div>
+        <div class="screen b">
+          <h3>詳細</h3>
+          <div class="hero"></div><div class="row"></div><div class="row"></div>
+        </div>`;
+      const b = stage.querySelector('.screen.b');
+      b.style.clipPath = `circle(0% at ${origin})`;
+      const wait = ms => new Promise(r => setTimeout(r, ctx.dur(ms)));
+      const run = async () => {
+        let a;
+        if (ctx.reduced()) {
+          b.style.clipPath = 'none';
+          a = b.animate([{ opacity: 0 }, { opacity: 1 }],
+                        { duration: ctx.dur(300), fill: 'forwards' });
+        } else {
+          a = b.animate(
+            [{ clipPath: `circle(0% at ${origin})` },
+             { clipPath: `circle(150% at ${origin})` }],
+            { duration: ctx.dur(700), easing: 'cubic-bezier(.65, 0, .35, 1)', fill: 'forwards' }
+          );
+        }
+        await a.finished;
+        await wait(700);   // 表示したまましばらく見せる
+        a.cancel();
+        b.style.clipPath = `circle(0% at ${origin})`;
+      };
+      return { run };
+    },
+    code: {
+      css: `.next {
+  clip-path: circle(0% at 50% 88%);
+  transition: clip-path .7s cubic-bezier(.65, 0, .35, 1);
+}
+.next.is-open {
+  clip-path: circle(150% at 50% 88%);
+}`,
+      waapi: `next.animate(
+  [{ clipPath: 'circle(0% at 50% 88%)' },
+   { clipPath: 'circle(150% at 50% 88%)' }],
+  { duration: 700,
+    easing: 'cubic-bezier(.65, 0, .35, 1)',
+    fill: 'forwards' }
+);`,
+      reduced: `@media (prefers-reduced-motion: reduce) {
+  .next { clip-path: none; opacity: 0; transition: opacity .3s linear; }
+  .next.is-open { opacity: 1; }
+}`
+    }
+  }
+];
+
+/* ============================================================
+   ビューア本体
+   ============================================================ */
+const $ = id => document.getElementById(id);
+const CATS = [['all', 'すべて'], ['button', 'ボタン'], ['transition', '画面遷移']];
+const SPEEDS = [0.5, 1, 2];
+const TABS = [['css', 'CSS'], ['waapi', 'WAAPI'], ['reduced', '動きを減らす場合']];
+
+const state = { cat: 'all', id: MOTIONS[0].id, rate: 1, tab: 'css', runId: 0, instance: null };
+
+const ctx = {
+  dur: ms => ms / state.rate,
+  reduced: () => $('reduced').checked
+};
+
+const current = () => MOTIONS.find(m => m.id === state.id);
+const visible = () => MOTIONS.filter(m => state.cat === 'all' || m.cat === state.cat);
+
+function renderFilters() {
+  $('filters').innerHTML = '';
+  CATS.forEach(([key, label]) => {
+    const b = document.createElement('button');
+    b.className = 'chip'; b.textContent = label;
+    b.setAttribute('aria-pressed', state.cat === key);
+    b.onclick = () => { state.cat = key; renderFilters(); renderList(); };
+    $('filters').appendChild(b);
+  });
+}
+
+function renderList() {
+  $('list').innerHTML = '';
+  visible().forEach(m => {
+    const li = document.createElement('li');
+    const b = document.createElement('button');
+    b.innerHTML = `${m.name}<span class="meta">${m.feel} ・ ${m.ms}ms</span>`;
+    if (m.id === state.id) b.setAttribute('aria-current', 'true');
+    b.onclick = () => select(m.id);
+    li.appendChild(b); $('list').appendChild(li);
+  });
+}
+
+function renderSpeed() {
+  $('speed').innerHTML = '';
+  SPEEDS.forEach(s => {
+    const b = document.createElement('button');
+    b.textContent = s + '×';
+    b.setAttribute('aria-pressed', state.rate === s);
+    b.onclick = () => { state.rate = s; renderSpeed(); play(); };
+    $('speed').appendChild(b);
+  });
+}
+
+function renderTabs() {
+  $('tabs').innerHTML = '';
+  TABS.forEach(([key, label]) => {
+    const b = document.createElement('button');
+    b.textContent = label;
+    b.setAttribute('aria-pressed', state.tab === key);
+    b.onclick = () => { state.tab = key; renderTabs(); renderCode(); };
+    $('tabs').appendChild(b);
+  });
+}
+
+function renderCode() {
+  $('code').textContent = current().code[state.tab];
+}
+
+function renderInfo() {
+  const m = current();
+  $('title').textContent = m.name;
+  $('desc').textContent = m.desc;
+  $('facts').innerHTML = `
+    <dt>感触</dt><dd>${m.feel}</dd>
+    <dt>用途</dt><dd>${m.use}</dd>
+    <dt>時間</dt><dd>${m.ms}ms</dd>
+    <dt>イージング</dt><dd><code>${m.easing}</code></dd>`;
+}
+
+function select(id) {
+  state.id = id;
+  state.runId++;
+  state.instance = current().setup($('stage'), ctx);
+  renderList(); renderInfo(); renderCode();
+  play();
+}
+
+async function play() {
+  const my = ++state.runId;
+  if (!state.instance) return;
+  try { await state.instance.run(); } catch (e) { return; }
+  if (my !== state.runId) return;
+  if ($('loop').checked) {
+    await new Promise(r => setTimeout(r, 500));
+    if (my === state.runId && $('loop').checked) play();
+  }
+}
+
+$('play').onclick = play;
+$('loop').onchange = () => { if ($('loop').checked) play(); else state.runId++; };
+$('reduced').onchange = play;
+$('copy').onclick = async () => {
+  try {
+    await navigator.clipboard.writeText($('code').textContent);
+    $('copy').textContent = 'コピーしました';
+  } catch { $('copy').textContent = '失敗'; }
+  setTimeout(() => $('copy').textContent = 'コピー', 1200);
+};
+document.addEventListener('keydown', e => {
+  if (e.target.matches('input, textarea')) return;
+  const list = visible(); const i = list.findIndex(m => m.id === state.id);
+  if (e.code === 'Space') { e.preventDefault(); play(); }
+  if (e.key === 'ArrowRight' && list[i + 1]) select(list[i + 1].id);
+  if (e.key === 'ArrowLeft' && list[i - 1]) select(list[i - 1].id);
+});
+
+renderFilters(); renderSpeed(); renderTabs();
+select(state.id);
+</script>
+</body>
+</html>
