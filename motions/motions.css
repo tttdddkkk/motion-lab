@@ -26,3 +26,12 @@
 .screen.a { background: #151a24; }
 .screen.b { background: linear-gradient(160deg, #3b5bdb, #7a4dd8); }
 .screen.b .hero { height: 140px; border-radius: 16px; background: rgba(255,255,255,.2); }
+
+.flow { position: absolute; inset: 0; display: grid; grid-template-rows: 1fr auto auto; }
+.flow-media { background: linear-gradient(160deg, #3b5bdb, #7a4dd8); }
+.flow-frame { position: relative; height: 100px; overflow: hidden; background: #151a24; border-top: 1px solid rgba(255,255,255,.08); }
+.flow-item { position: absolute; left: 0; white-space: nowrap; font-size: 14px; line-height: 20px; color: var(--text); will-change: transform; }
+.flow-item.is-static { left: 8px; }
+.flow-bar { display: flex; gap: 8px; align-items: center; padding: 10px 12px 14px; background: #0f131b; }
+.flow-play { width: 32px; height: 32px; border: 0; border-radius: 50%; background: rgba(255,255,255,.12); color: var(--text); font-size: 12px; }
+.flow-range { flex: 1; accent-color: var(--accent); }

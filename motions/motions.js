@@ -196,5 +196,165 @@ export const MOTIONS = [
   .next.is-open { opacity: 1; }
 }`
     }
+  },
+  {
+    id: 'flow-seek',
+    cat: 'text',
+    name: '流れる文字+シーク',
+    feel: '連続・にぎやか',
+    use: 'タイムライン連動のテキスト',
+    ms: 3000,
+    easing: 'linear',
+    desc: '映像の下の枠で文字が右から左へ流れる。シークバーで進めたり戻したりできる。',
+    setup(stage, ctx) {
+      // 映像と重ねない・行は固定・投稿や重なり回避は作らない（docs/adr/0008）
+      const CROSS = 3000;   // 1つの文字が枠を横切る時間
+      const END = -140;     // 最も長い文字が枠の左に出きる位置(px)
+      const ITEMS = [
+        { t: 0,    lane: 0, text: 'はじまった' },
+        { t: 400,  lane: 1, text: 'こんばんは' },
+        { t: 900,  lane: 2, text: '音がいい' },
+        { t: 1600, lane: 0, text: 'ここ好き' },
+        { t: 2200, lane: 1, text: 'なるほど' },
+        { t: 2800, lane: 2, text: 'もう一回見たい' },
+        { t: 3400, lane: 0, text: 'きれい' },
+        { t: 4000, lane: 1, text: 'わかる' },
+        { t: 4700, lane: 2, text: 'おつかれさま' },
+      ];
+      const TOTAL = Math.max(...ITEMS.map(i => i.t)) + CROSS;
+
+      stage.innerHTML = `
+        <div class="flow">
+          <div class="flow-media"></div>
+          <div class="flow-frame">${ITEMS.map(i =>
+            `<span class="flow-item" style="top:${8 + i.lane * 28}px">${i.text}</span>`).join('')}</div>
+          <div class="flow-bar">
+            <button class="flow-play" type="button" aria-label="一時停止">❚❚</button>
+            <input class="flow-range" type="range" min="0" max="1000" value="0" aria-label="再生位置">
+          </div>
+        </div>`;
+      const frame = stage.querySelector('.flow-frame');
+      const els = [...stage.querySelectorAll('.flow-item')];
+      const playBtn = stage.querySelector('.flow-play');
+      const range = stage.querySelector('.flow-range');
+
+      let anims = [];
+      let clock = null;
+      let dragging = false;
+      let wasPlaying = false;
+
+      const isPlaying = () => clock?.playState === 'running';
+      const setLabel = () => {
+        playBtn.textContent = isPlaying() ? '❚❚' : '▶';
+        playBtn.setAttribute('aria-label', isPlaying() ? '一時停止' : '再生');
+      };
+      const seek = fraction => {
+        const time = fraction * ctx.dur(TOTAL);
+        anims.forEach(a => { a.currentTime = time; });
+      };
+      const tick = () => {
+        if (!clock || clock.playState === 'idle') return;
+        if (!dragging) range.value = Math.round(clock.currentTime / ctx.dur(TOTAL) * 1000);
+        setLabel();
+        if (clock.playState !== 'finished') requestAnimationFrame(tick);
+      };
+
+      const build = () => {
+        anims.forEach(a => a.cancel());
+        const W = frame.clientWidth;
+        const reduced = ctx.reduced();
+        anims = els.map((el, i) => {
+          const { t, lane } = ITEMS[i];
+          el.classList.toggle('is-static', reduced);
+          if (!reduced) {
+            return el.animate(
+              [{ transform: `translateX(${W}px)` }, { transform: `translateX(${END}px)` }],
+              { duration: ctx.dur(CROSS), delay: ctx.dur(t), easing: 'linear', fill: 'both' }
+            );
+          }
+          // 静止表示: 同じ行の次の文字が出るまでを表示期間にして、重ならないようにする
+          const next = ITEMS.find((o, j) => j > i && o.lane === lane);
+          const end = Math.min(t + CROSS, next ? next.t : Infinity);
+          return el.animate(
+            [{ opacity: 0 }, { opacity: 1, offset: .1 }, { opacity: 1, offset: .9 }, { opacity: 0 }],
+            { duration: ctx.dur(end - t), delay: ctx.dur(t), easing: 'linear', fill: 'both' }
+          );
+        });
+        clock = frame.animate([], { duration: ctx.dur(TOTAL) });
+        anims.push(clock);
+        requestAnimationFrame(tick);
+      };
+
+      playBtn.addEventListener('click', () => {
+        if (!clock) return;
+        if (isPlaying()) anims.forEach(a => a.pause());
+        else {
+          if (clock.playState === 'finished') seek(0);
+          anims.forEach(a => a.play());
+          requestAnimationFrame(tick);
+        }
+        setLabel();
+      });
+      range.addEventListener('pointerdown', () => {
+        dragging = true;
+        wasPlaying = isPlaying();
+        anims.forEach(a => a.pause());
+      });
+      range.addEventListener('input', () => seek(range.value / 1000));
+      range.addEventListener('change', () => {
+        if (dragging && wasPlaying) {
+          anims.forEach(a => a.play());
+          requestAnimationFrame(tick);
+        }
+        dragging = false;
+        setLabel();
+      });
+
+      const run = () => {
+        build();
+        return clock.finished.then(() => setLabel());
+      };
+      return { run };
+    },
+    code: {
+      css: `.frame { position: relative; overflow: hidden; container-type: inline-size; }
+.item {
+  position: absolute; left: 100%; white-space: nowrap;
+  animation: flow 3s linear both;
+  animation-delay: var(--t); /* 出現時刻（例: 1.6s） */
+}
+@keyframes flow {
+  from { transform: translateX(0); }
+  to   { transform: translateX(calc(-100cqw - 140px)); }
+}
+/* シーク: 一時停止して、遅延を「出現時刻 − シーク位置」にずらす */
+.frame.is-seeking .item {
+  animation-play-state: paused;
+  animation-delay: calc(var(--t) - var(--seek));
+}`,
+      waapi: `const CROSS = 3000, END = -140;
+const W = frame.clientWidth;
+const anims = items.map(({ el, t }) => el.animate(
+  [{ transform: \`translateX(\${W}px)\` },
+   { transform: \`translateX(\${END}px)\` }],
+  { duration: CROSS, delay: t, easing: 'linear', fill: 'both' }
+));
+
+// シーク: すべてのアニメーションの再生位置を同じ時刻にそろえる
+range.addEventListener('pointerdown', () => anims.forEach(a => a.pause()));
+range.addEventListener('input', () => {
+  const time = range.value / 1000 * TOTAL;
+  anims.forEach(a => { a.currentTime = time; });
+});
+range.addEventListener('change', () => anims.forEach(a => a.play()));`,
+      reduced: `@media (prefers-reduced-motion: reduce) {
+  /* 流さずに定位置で表示し、出入りは不透明度だけで切り替える */
+  .item { left: 8px; animation-name: flow-fade; }
+}
+@keyframes flow-fade {
+  0%, 100% { opacity: 0; }
+  10%, 90% { opacity: 1; }
+}`
+    }
   }
 ];
