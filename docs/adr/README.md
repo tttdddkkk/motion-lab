@@ -14,3 +14,4 @@
 | [0005](0005-no-shared-node-modules-in-worktrees.md) | ワークツリーで `node_modules` を共有しない | 採用 |
 | [0006](0006-pr-only-main.md) | main への直接 push を禁止し、PR と CI 成功を必須にする | 採用 |
 | [0007](0007-disable-storybook-telemetry.md) | Storybook の利用統計を無効にする | 採用 |
+| [0008](0008-comment-flow-patent-constraints.md) | 流れる文字のモーションは、映像と重ならない別枠で作る | 採用 |
