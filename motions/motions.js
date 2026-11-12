@@ -205,7 +205,7 @@ export const MOTIONS = [
     use: 'タイムライン連動のテキスト',
     ms: 3000,
     easing: 'linear',
-    desc: '映像の下の枠で文字が右から左へ流れる。シークバーで進めたり戻したりできる。',
+    desc: '映像の下の枠で文字が右から左へ流れる。シークバーで進めたり戻したりできる。時間は1つの文字が枠を横切る長さで、全体は約7.7秒。',
     setup(stage, ctx) {
       // 映像と重ねない・行は固定・投稿や重なり回避は作らない（docs/adr/0008）
       const CROSS = 3000;   // 1つの文字が枠を横切る時間
@@ -242,6 +242,7 @@ export const MOTIONS = [
       let clock = null;
       let dragging = false;
       let wasPlaying = false;
+      let ticking = false;
 
       const isPlaying = () => clock?.playState === 'running';
       const setLabel = () => {
@@ -252,11 +253,18 @@ export const MOTIONS = [
         const time = fraction * ctx.dur(TOTAL);
         anims.forEach(a => { a.currentTime = time; });
       };
+      // シークバーの表示更新は再生中だけ回し、二重に起動しない
       const tick = () => {
-        if (!clock || clock.playState === 'idle') return;
+        if (!clock || clock.playState === 'idle') { ticking = false; return; }
         if (!dragging) range.value = Math.round(clock.currentTime / ctx.dur(TOTAL) * 1000);
         setLabel();
-        if (clock.playState !== 'finished') requestAnimationFrame(tick);
+        ticking = clock.playState === 'running';
+        if (ticking) requestAnimationFrame(tick);
+      };
+      const startTick = () => {
+        if (ticking) return;
+        ticking = true;
+        requestAnimationFrame(tick);
       };
 
       const build = () => {
@@ -282,7 +290,7 @@ export const MOTIONS = [
         });
         clock = frame.animate([], { duration: ctx.dur(TOTAL) });
         anims.push(clock);
-        requestAnimationFrame(tick);
+        startTick();
       };
 
       playBtn.addEventListener('click', () => {
@@ -291,7 +299,7 @@ export const MOTIONS = [
         else {
           if (clock.playState === 'finished') seek(0);
           anims.forEach(a => a.play());
-          requestAnimationFrame(tick);
+          startTick();
         }
         setLabel();
       });
@@ -304,7 +312,7 @@ export const MOTIONS = [
       range.addEventListener('change', () => {
         if (dragging && wasPlaying) {
           anims.forEach(a => a.play());
-          requestAnimationFrame(tick);
+          startTick();
         }
         dragging = false;
         setLabel();
@@ -341,15 +349,23 @@ const anims = items.map(({ el, t }) => el.animate(
 ));
 
 // シーク: すべてのアニメーションの再生位置を同じ時刻にそろえる
-range.addEventListener('pointerdown', () => anims.forEach(a => a.pause()));
+let wasPlaying = false;
+range.addEventListener('pointerdown', () => {
+  wasPlaying = anims[0].playState === 'running';
+  anims.forEach(a => a.pause());
+});
 range.addEventListener('input', () => {
   const time = range.value / 1000 * TOTAL;
   anims.forEach(a => { a.currentTime = time; });
 });
-range.addEventListener('change', () => anims.forEach(a => a.play()));`,
+// 再生中にドラッグを始めたときだけ、離したら再開する
+range.addEventListener('change', () => {
+  if (wasPlaying) anims.forEach(a => a.play());
+});`,
       reduced: `@media (prefers-reduced-motion: reduce) {
-  /* 流さずに定位置で表示し、出入りは不透明度だけで切り替える */
-  .item { left: 8px; animation-name: flow-fade; }
+  /* 流さずに定位置で表示し、出入りは不透明度だけで切り替える。
+     表示期間 --dur は「同じ行の次の文字が出るまで（最長3s）」にして重ならないようにする */
+  .item { left: 8px; animation-name: flow-fade; animation-duration: var(--dur); }
 }
 @keyframes flow-fade {
   0%, 100% { opacity: 0; }
