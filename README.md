@@ -12,7 +12,7 @@
 
 ## 公開URL
 
-（Pages 有効化後に追記）
+https://tttdddkkk.github.io/motion-lab/
 
 ## 検索エンジンについて
 
