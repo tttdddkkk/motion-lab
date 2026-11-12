@@ -2,6 +2,7 @@
 
 ## 作業手順
 
+- 変更はブランチを切って PR にする。main に直接 push しない（GitHub のルールセットで拒否される。マージには CI の `test` 成功が必要）
 - ワークツリー（`claude -w` / `.claude/worktrees/`）では、最初に `npm ci` を実行する。`node_modules` は共有していない
 - ビューアの動作確認は `file://` ではなくローカルサーバー経由で行う（ES Modules のため `file://` では読み込めない）
 - コミット前に `npm test` を実行する。初回のみ `npx playwright install chromium` が必要
