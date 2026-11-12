@@ -322,6 +322,14 @@ export const MOTIONS = [
         build();
         return clock.finished.then(() => setLabel());
       };
+      // 再生前でも時刻0の配置で表示し、シークできるようにする。
+      // 位置の計算に枠の幅が要るため、DOM に入った後（次のフレーム）で作る
+      requestAnimationFrame(() => {
+        if (clock || !frame.isConnected) return;
+        build();
+        anims.forEach(a => a.pause());
+        setLabel();
+      });
       return { run };
     },
     code: {

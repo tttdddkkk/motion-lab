@@ -26,6 +26,10 @@ function spyAnimate() {
 function story(id) {
   const motion = MOTIONS.find(m => m.id === id);
   if (!motion) throw new Error(`MOTIONS に id "${id}" がない`);
+  const mount = (stage, args) => {
+    const instance = motion.setup(stage, { dur: ms => ms / args.rate, reduced: () => args.reduced });
+    if (args.autoplay) requestAnimationFrame(() => instance.run().catch(() => {}));
+  };
   return {
     name: motion.name,
     parameters: { motionId: id, docs: { description: { story: motion.desc } } },
@@ -35,11 +39,10 @@ function story(id) {
       const stage = document.createElement('div');
       stage.className = 'stage';
       root.append(stage);
-      const instance = motion.setup(stage, { dur: ms => ms / args.rate, reduced: () => args.reduced });
-      if (args.autoplay) requestAnimationFrame(() => instance.run().catch(() => {}));
+      mount(stage, args);
       return root;
     },
-    play: async ({ canvasElement, step }) => {
+    play: async ({ canvasElement, step, args }) => {
       const stage = canvasElement.querySelector('.stage');
       await frame();
       // 自動再生ぶんを止めて、以降の検証に混ざらないようにする
@@ -68,6 +71,14 @@ function story(id) {
       }
 
       if (stage.querySelector('input[type="range"]')) {
+        await step('再生前でも、文字が時刻0の位置に配置されている', async () => {
+          motion.setup(stage, { dur: ms => ms / 4, reduced: () => false });
+          await frame();
+          const transforms = [...stage.querySelectorAll('.flow-item')].map(el => getComputedStyle(el).transform);
+          await expect(transforms).not.toContain('none');
+          stage.getAnimations({ subtree: true }).forEach(a => a.cancel());
+        });
+
         await step('シークバーを動かすと、表示位置が時刻に合わせて変わる', async () => {
           motion.setup(stage, { dur: ms => ms / 4, reduced: () => false }).run().catch(() => {});
           await frame();
@@ -95,6 +106,10 @@ function story(id) {
           await expect(button.getAnimations({ subtree: true }).length).toBeGreaterThan(0);
         });
       }
+
+      // 検証で書き換えた表示を、Controls の設定どおりの状態に戻す
+      stage.getAnimations({ subtree: true }).forEach(a => a.cancel());
+      mount(stage, args);
     },
   };
 }
