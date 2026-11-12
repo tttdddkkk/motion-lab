@@ -107,8 +107,9 @@ function story(id) {
         });
       }
 
-      // 検証で書き換えた表示を、Controls の設定どおりの状態に戻す
-      stage.getAnimations({ subtree: true }).forEach(a => a.cancel());
+      // 検証で書き換えた表示を、Controls の設定どおりの状態に戻す。
+      // 中身は setup が作り直すので、ここでアニメーションを cancel しない
+      // （クリックで始まった ripple の finished が reject され、未処理エラーになる）
       mount(stage, args);
     },
   };
