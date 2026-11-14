@@ -60,3 +60,20 @@ PR では `.github/workflows/claude-code-review.yml` が Claude によるレビ�
 
 - `package-lock.json`
 - 変更されていない箇所。この PR で触れていないコードの既存の問題は対象外とする
+
+## PR 作成後の流れ
+
+1. CI（`test` ジョブ: `npm test` と `npm run build-storybook`）の結果を確認する。失敗していたら原因を調べて直す
+2. Netlify の Deploy Preview（`deploy-preview-<PR番号>--<サイト名>.netlify.app`）が発行されたら、URL を PR 本文に記載する。ビューアのプレビューであり、Storybook は含まれない
+3. 作業者に報告する
+
+### 報告の形式
+
+- 変更点を短く書く
+- 確認してほしい画面と URL（プレビューURL + 見てほしい操作）を明記する
+- 要確認の点があれば「要確認」として書く
+
+### やってはいけないこと
+
+- テストを消す・スキップして通す
+- CI やルールセットの設定を無断で緩める

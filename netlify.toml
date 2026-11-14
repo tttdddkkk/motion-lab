@@ -1,0 +1,4 @@
+# PR ごとのプレビュー（Netlify Deploy Preview）。配信するのはビューアに必要なファイルだけ
+[build]
+  command = "rm -rf dist && mkdir dist && cp -r index.html robots.txt motions dist/"
+  publish = "dist"
