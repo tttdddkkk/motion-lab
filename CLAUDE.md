@@ -64,7 +64,7 @@ PR では `.github/workflows/claude-code-review.yml` が Claude によるレビ�
 ## PR 作成後の流れ
 
 1. CI（`test` ジョブ: `npm test` と `npm run build-storybook`）の結果を確認する。失敗していたら原因を調べて直す
-2. Netlify の Deploy Preview（`deploy-preview-<PR番号>--<サイト名>.netlify.app`）が発行されたら、URL を PR 本文に記載する。ビューアのプレビューであり、Storybook は含まれない
+2. Netlify の Deploy Preview（`deploy-preview-<PR番号>--motion-lab-tttdddkkk.netlify.app`）が発行されたら、URL を PR 本文に記載する。ビューアのプレビューであり、Storybook は含まれない
 3. 作業者に報告する
 
 ### 報告の形式
