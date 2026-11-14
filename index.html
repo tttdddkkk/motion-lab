@@ -123,7 +123,11 @@ const CATS = [['all', 'すべて'], ['button', 'ボタン'], ['transition', '画
 const SPEEDS = [0.5, 1, 2];
 const TABS = [['css', 'CSS'], ['waapi', 'WAAPI'], ['reduced', '動きを減らす場合']];
 
-const state = { cat: 'all', id: MOTIONS[0].id, rate: 1, tab: 'css', runId: 0, instance: null };
+/* URL の #<id> で、最初に開くモーションを指定できる（PR のプレビュー確認用）。該当がなければ先頭 */
+const hashId = (() => { try { return decodeURIComponent(location.hash.slice(1)); } catch { return ''; } })();
+const initialId = MOTIONS.some(m => m.id === hashId) ? hashId : MOTIONS[0].id;
+
+const state = { cat: 'all', id: initialId, rate: 1, tab: 'css', runId: 0, instance: null };
 
 const ctx = {
   dur: ms => ms / state.rate,
@@ -195,6 +199,7 @@ function renderInfo() {
 
 function select(id) {
   state.id = id;
+  history.replaceState(null, '', '#' + encodeURIComponent(id));
   state.runId++;
   state.instance = current().setup($('stage'), ctx);
   renderList(); renderInfo(); renderCode();
@@ -228,6 +233,13 @@ document.addEventListener('keydown', e => {
   if (e.code === 'Space') { e.preventDefault(); play(); }
   if (e.key === 'ArrowRight' && list[i + 1]) select(list[i + 1].id);
   if (e.key === 'ArrowLeft' && list[i - 1]) select(list[i - 1].id);
+});
+
+/* ページを開いたまま # だけが変わった場合（再読み込みされない）にも追従する */
+window.addEventListener('hashchange', () => {
+  let id = '';
+  try { id = decodeURIComponent(location.hash.slice(1)); } catch { return; }
+  if (id !== state.id && MOTIONS.some(m => m.id === id)) select(id);
 });
 
 renderFilters(); renderSpeed(); renderTabs();
