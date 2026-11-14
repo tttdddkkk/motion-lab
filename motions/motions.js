@@ -32,7 +32,7 @@ function flowSeek(stage, ctx, { vertical }) {
     <div class="flow${vertical ? ' is-vertical' : ''}">
       <div class="flow-media"></div>
       <div class="flow-frame">${ITEMS.map(i =>
-        `<span class="flow-item" style="--lane:${i.lane}${vertical ? '' : `;top:${8 + i.lane * 28}px`}">${i.text}</span>`).join('')}</div>
+        `<span class="flow-item"${vertical ? '' : ` style="top:${8 + i.lane * 28}px"`}>${i.text}</span>`).join('')}</div>
       <div class="flow-bar">
         <button class="flow-play" type="button" aria-label="一時停止">❚❚</button>
         <input class="flow-range" type="range" min="0" max="1000" value="0" aria-label="再生位置">
@@ -76,6 +76,7 @@ function flowSeek(stage, ctx, { vertical }) {
     anims.forEach(a => a.cancel());
     const W = vertical ? frame.clientHeight : frame.clientWidth;
     const reduced = ctx.reduced();
+    frame.classList.toggle('is-static', reduced);
     anims = els.map((el, i) => {
       const { t, lane } = ITEMS[i];
       el.classList.toggle('is-static', reduced);
@@ -85,8 +86,9 @@ function flowSeek(stage, ctx, { vertical }) {
           { duration: ctx.dur(CROSS), delay: ctx.dur(t), easing: 'linear', fill: 'both' }
         );
       }
-      // 静止表示: 同じ行の次の文字が出るまでを表示期間にして、重ならないようにする
-      const next = ITEMS.find((o, j) => j > i && o.lane === lane);
+      // 静止表示。横: 同じ行の次の文字が出るまでを表示期間にして、重ならないようにする。
+      // 縦: 枠に空きがあるので、文字ごとに専用の位置（上から順）を割り当て、入れ替えずに CROSS の間見せる
+      const next = vertical ? null : ITEMS.find((o, j) => j > i && o.lane === lane);
       const end = Math.min(t + CROSS, next ? next.t : Infinity);
       return el.animate(
         [{ opacity: 0 }, { opacity: 1, offset: .1 }, { opacity: 1, offset: .9 }, { opacity: 0 }],
@@ -440,11 +442,11 @@ range.addEventListener('change', () => {
   if (wasPlaying) anims.forEach(a => a.play());
 });`,
       reduced: `@media (prefers-reduced-motion: reduce) {
-  /* 流さずに定位置で表示し、出入りは不透明度だけで切り替える。
-     表示期間 --dur は「同じ行の次の文字が出るまで（最長4s）」にして重ならないようにする */
-  /* 行の間隔は、折り返して2行になっても重ならない高さ（48px）にする */
-  .item { top: calc(8px + var(--lane) * 48px); left: 8px;
-          animation-name: flow-fade; animation-duration: var(--dur); }
+  /* 流さずに表示し、出入りは不透明度だけで切り替える。
+     枠に空きがあるので、文字ごとに専用の位置（上から順）に置き、入れ替えずに4s見せる */
+  .frame { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 8px; }
+  .item { position: static; max-width: 100%;
+          animation-name: flow-fade; animation-duration: 4s; }
 }
 @keyframes flow-fade {
   0%, 100% { opacity: 0; }

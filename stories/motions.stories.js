@@ -156,6 +156,22 @@ function story(id) {
         });
       }
 
+      if (motion.id === 'flow-seek-vertical') {
+        await step('縦・動きを減らす: 文字ごとに専用の位置があり、入れ替わらず枠に収まる', async () => {
+          motion.setup(stage, { dur: ms => ms / 4, reduced: () => true }).run().catch(() => {});
+          await frame();
+          const area = stage.querySelector('.flow-frame').getBoundingClientRect();
+          const items = [...stage.querySelectorAll('.flow-item')];
+          // 位置は文字ごとに別（同じ位置に出入りしない）で、順に並ぶ
+          await expect(new Set(items.map(el => el.offsetTop)).size).toBe(items.length);
+          for (let i = 1; i < items.length; i++) {
+            await expect(items[i].offsetTop).toBeGreaterThanOrEqual(items[i - 1].offsetTop + items[i - 1].offsetHeight);
+          }
+          for (const el of items) await expect(el.getBoundingClientRect().bottom).toBeLessThanOrEqual(area.bottom + 1);
+          stage.getAnimations({ subtree: true }).forEach(a => a.cancel());
+        });
+      }
+
       const button = stage.querySelector('button.demo-btn');
       if (button) {
         await step('ボタンをクリックするとアニメーションが始まる', async () => {
