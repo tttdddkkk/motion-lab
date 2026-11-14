@@ -26,6 +26,10 @@ function spyAnimate() {
 function story(id) {
   const motion = MOTIONS.find(m => m.id === id);
   if (!motion) throw new Error(`MOTIONS に id "${id}" がない`);
+  const mount = (stage, args) => {
+    const instance = motion.setup(stage, { dur: ms => ms / args.rate, reduced: () => args.reduced });
+    if (args.autoplay) requestAnimationFrame(() => instance.run().catch(() => {}));
+  };
   return {
     name: motion.name,
     parameters: { motionId: id, docs: { description: { story: motion.desc } } },
@@ -35,11 +39,10 @@ function story(id) {
       const stage = document.createElement('div');
       stage.className = 'stage';
       root.append(stage);
-      const instance = motion.setup(stage, { dur: ms => ms / args.rate, reduced: () => args.reduced });
-      if (args.autoplay) requestAnimationFrame(() => instance.run().catch(() => {}));
+      mount(stage, args);
       return root;
     },
-    play: async ({ canvasElement, step }) => {
+    play: async ({ canvasElement, step, args }) => {
       const stage = canvasElement.querySelector('.stage');
       await frame();
       // 自動再生ぶんを止めて、以降の検証に混ざらないようにする
@@ -67,13 +70,47 @@ function story(id) {
         });
       }
 
-      const button = stage.querySelector('button');
+      if (stage.querySelector('input[type="range"]')) {
+        await step('再生前でも、文字が時刻0の位置に配置されている', async () => {
+          motion.setup(stage, { dur: ms => ms / 4, reduced: () => false });
+          await frame();
+          const transforms = [...stage.querySelectorAll('.flow-item')].map(el => getComputedStyle(el).transform);
+          await expect(transforms).not.toContain('none');
+          stage.getAnimations({ subtree: true }).forEach(a => a.cancel());
+        });
+
+        await step('シークバーを動かすと、表示位置が時刻に合わせて変わる', async () => {
+          motion.setup(stage, { dur: ms => ms / 4, reduced: () => false }).run().catch(() => {});
+          await frame();
+          // setup で中身が作り直されるため、要素は取り直す
+          const range = stage.querySelector('input[type="range"]');
+          const item = stage.querySelector('.flow-item');
+          const at = value => {
+            range.dispatchEvent(new PointerEvent('pointerdown'));
+            range.value = String(value);
+            range.dispatchEvent(new Event('input'));
+            return getComputedStyle(item).transform;
+          };
+          const early = at(50);
+          const later = at(250);
+          await expect(later).not.toBe(early);
+          await expect(at(50)).toBe(early);
+          stage.getAnimations({ subtree: true }).forEach(a => a.cancel());
+        });
+      }
+
+      const button = stage.querySelector('button.demo-btn');
       if (button) {
         await step('ボタンをクリックするとアニメーションが始まる', async () => {
           button.click();
           await expect(button.getAnimations({ subtree: true }).length).toBeGreaterThan(0);
         });
       }
+
+      // 検証で書き換えた表示を、Controls の設定どおりの状態に戻す。
+      // 中身は setup が作り直すので、ここでアニメーションを cancel しない
+      // （クリックで始まった ripple の finished が reject され、未処理エラーになる）
+      mount(stage, args);
     },
   };
 }
@@ -81,3 +118,4 @@ function story(id) {
 export const PressBounce = story('press-bounce');
 export const Ripple = story('ripple');
 export const CircleReveal = story('circle-reveal');
+export const FlowSeek = story('flow-seek');
