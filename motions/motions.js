@@ -72,14 +72,51 @@ function flowSeek(stage, ctx, { vertical }) {
     requestAnimationFrame(tick);
   };
 
+  const packSlots = () => {
+    const PAD = 8, H = frame.clientHeight;
+    const heights = els.map(el => el.offsetHeight);
+    // 文字の間隔 gap で、全件を置けるか試す。置けなかった文字があれば ok = false
+    const pack = gap => {
+      const placed = [];
+      let cursor = PAD;   // 次に置く位置。下に空きがあるうちは下へ足していく
+      let ok = true;
+      const ys = heights.map((h, i) => {
+        const t = ITEMS[i].t;
+        const active = placed.filter(o => o.end > t);   // 今も表示中の文字
+        const fits = y => y + h <= H - PAD && active.every(o => y + h + gap <= o.y || o.y + o.h + gap <= y);
+        // 下に空きがあればそこへ。足りなくなったら上に戻り、消えた文字の位置を再利用する
+        const candidates = [PAD, cursor, ...active.map(o => o.y + o.h + gap)].sort((a, b) => a - b);
+        let y = candidates.find(c => c >= cursor && fits(c)) ?? candidates.find(fits);
+        if (y === undefined) {
+          // 足りないときだけ、最も早く消える文字の位置に重ねる
+          ok = false;
+          y = active.reduce((a, o) => (o.end < a.end ? o : a)).y;
+        }
+        placed.push({ y, h, end: t + CROSS });
+        cursor = y + h + gap;
+        return y;
+      });
+      return { ys, ok };
+    };
+    // 枠が低いときは、重ねる前に間隔を詰める（8px → 2px → 0px）
+    for (const gap of [8, 2]) {
+      const r = pack(gap);
+      if (r.ok) return r.ys;
+    }
+    return pack(0).ys;
+  };
+
   const build = () => {
     anims.forEach(a => a.cancel());
     const W = vertical ? frame.clientHeight : frame.clientWidth;
     const reduced = ctx.reduced();
-    frame.classList.toggle('is-static', reduced);
+    // 縦の静止表示: 表示時間が重なる文字どうしだけを避けて位置を決める。
+    // 下に空きがあるうちは下へ足していき（全件が専用の位置）、足りなくなったら上に戻って再利用する
+    const ys = vertical && reduced ? packSlots() : [];
     anims = els.map((el, i) => {
       const { t, lane } = ITEMS[i];
       el.classList.toggle('is-static', reduced);
+      if (vertical) el.style.top = reduced ? `${ys[i]}px` : '';
       if (!reduced) {
         return el.animate(
           [{ transform: `translate${axis}(${W}px)` }, { transform: `translate${axis}(${END})` }],
@@ -87,7 +124,7 @@ function flowSeek(stage, ctx, { vertical }) {
         );
       }
       // 静止表示。横: 同じ行の次の文字が出るまでを表示期間にして、重ならないようにする。
-      // 縦: 枠に空きがあるので、文字ごとに専用の位置（上から順）を割り当て、入れ替えずに CROSS の間見せる
+      // 縦: 位置は packSlots で決める（表示時間が重なる文字どうしを避ける）。表示期間は CROSS
       const next = vertical ? null : ITEMS.find((o, j) => j > i && o.lane === lane);
       const end = Math.min(t + CROSS, next ? next.t : Infinity);
       return el.animate(
@@ -443,9 +480,10 @@ range.addEventListener('change', () => {
 });`,
       reduced: `@media (prefers-reduced-motion: reduce) {
   /* 流さずに表示し、出入りは不透明度だけで切り替える。
-     枠に空きがあるので、文字ごとに専用の位置（上から順）に置き、入れ替えずに4s見せる */
-  .frame { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 8px; }
-  .item { position: static; max-width: 100%;
+     位置 --y は、表示時間が重なる文字どうしだけを避けて計算して決める。
+     下に空きがあるうちは下へ足していき、足りなくなったら上に戻って、消えた文字の位置を再利用する。
+     それでも足りないときは、文字の間隔を詰める */
+  .item { top: var(--y); left: 8px; max-width: calc(100% - 16px);
           animation-name: flow-fade; animation-duration: 4s; }
 }
 @keyframes flow-fade {

@@ -157,19 +157,47 @@ function story(id) {
       }
 
       if (motion.id === 'flow-seek-vertical') {
-        await step('縦・動きを減らす: 文字ごとに専用の位置があり、入れ替わらず枠に収まる', async () => {
-          motion.setup(stage, { dur: ms => ms / 4, reduced: () => true }).run().catch(() => {});
-          await frame();
-          const area = stage.querySelector('.flow-frame').getBoundingClientRect();
-          const items = [...stage.querySelectorAll('.flow-item')];
-          // 位置は文字ごとに別（同じ位置に出入りしない）で、順に並ぶ
-          await expect(new Set(items.map(el => el.offsetTop)).size).toBe(items.length);
-          for (let i = 1; i < items.length; i++) {
-            await expect(items[i].offsetTop).toBeGreaterThanOrEqual(items[i - 1].offsetTop + items[i - 1].offsetHeight);
-          }
-          for (const el of items) await expect(el.getBoundingClientRect().bottom).toBeLessThanOrEqual(area.bottom + 1);
-          stage.getAnimations({ subtree: true }).forEach(a => a.cancel());
-        });
+        // 枠が十分高いときと、低いとき（位置を再利用する）の両方で、表示中の文字が重ならず枠に収まる
+        for (const height of [null, 290, 250]) {
+          await step(`縦・動きを減らす${height ? `（枠が低い: ${height}px）` : ''}: 表示中の文字が重ならず、枠に収まる`, async () => {
+            const root = stage.parentElement;
+            if (height) root.style.height = `${height}px`;
+            try {
+              motion.setup(stage, { dur: ms => ms / 4, reduced: () => true }).run().catch(() => {});
+              await frame();
+              const range = stage.querySelector('input[type="range"]');
+              const area = stage.querySelector('.flow-frame').getBoundingClientRect();
+              const items = [...stage.querySelectorAll('.flow-item')];
+              const seekTo = value => {
+                range.dispatchEvent(new PointerEvent('pointerdown'));
+                range.value = String(value);
+                range.dispatchEvent(new Event('input'));
+              };
+              let maxShown = 0;
+              for (let v = 0; v <= 1000; v += 20) {
+                seekTo(v);
+                const shown = items.filter(el => Number(getComputedStyle(el).opacity) > 0.01).map(el => el.getBoundingClientRect());
+                maxShown = Math.max(maxShown, shown.length);
+                for (const r of shown) {
+                  await expect(r.top).toBeGreaterThanOrEqual(area.top);
+                  await expect(r.bottom).toBeLessThanOrEqual(area.bottom + 1);
+                }
+                for (let i = 0; i < shown.length; i++) for (let j = i + 1; j < shown.length; j++) {
+                  const a = shown[i], b = shown[j];
+                  await expect(a.top < b.bottom && b.top < a.bottom).toBe(false);
+                }
+              }
+              await expect(maxShown).toBeGreaterThan(3);   // 3件までの固定位置ではない
+              if (!height) {
+                // 枠に空きがあるときは、全件が専用の位置（入れ替わらない）
+                await expect(new Set(items.map(el => el.offsetTop)).size).toBe(items.length);
+              }
+              stage.getAnimations({ subtree: true }).forEach(a => a.cancel());
+            } finally {
+              root.style.height = '';
+            }
+          });
+        }
       }
 
       const button = stage.querySelector('button.demo-btn');
