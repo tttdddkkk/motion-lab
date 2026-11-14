@@ -199,7 +199,7 @@ export const MOTIONS = [
   },
   {
     id: 'flow-seek',
-    cat: 'text',
+    cat: 'comment',
     name: '流れる文字+シーク',
     feel: '連続・にぎやか',
     use: 'タイムライン連動のテキスト',
