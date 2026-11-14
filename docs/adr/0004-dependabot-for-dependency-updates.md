@@ -13,7 +13,7 @@
 - `.github/dependabot.yml` で npm と GitHub Actions を毎週月曜 9:00（Asia/Tokyo）に確認する
 - `cooldown` で公開から7日（major は14日）経った版だけを取り込む。脆弱性修正にはこの待ちはかからない（Dependabot の仕様）
 - `storybook` / `@storybook/*` と `vitest` / `@vitest/*` は、バージョンを揃える必要があるため major も含めてそれぞれ1つの PR にまとめる。それ以外は minor と patch をまとめる
-- CI（`npm ci` → `npm test`）で更新 PR を検証する
+- CI（`npm ci` → `npm test` → `npm run build-storybook`）で更新 PR を検証する
 
 ## 検討した他の案
 

@@ -7,6 +7,7 @@
 <link rel="icon" href="data:,">
 <title>Motion Lab</title>
 <link rel="stylesheet" href="motions/motions.css">
+<link rel="stylesheet" href="motions/compare.css">
 <style>
   * { box-sizing: border-box; }
   html, body { margin: 0; background: var(--bg); color: var(--text); }
@@ -21,6 +22,8 @@
   @media (max-width: 820px) { aside { border-right: 0; border-bottom: 1px solid var(--line); } }
   .brand { font-weight: 700; letter-spacing: .08em; margin: 0 0 16px; }
   .brand small { display: block; font-weight: 400; color: var(--sub); letter-spacing: 0; }
+  .intro { margin: -8px 0 16px; color: var(--sub); font-size: 12px; line-height: 1.6; }
+  .intro a { color: var(--accent); }
   .filters { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
   .chip {
     border: 1px solid var(--line); background: transparent; border-radius: 999px;
@@ -78,11 +81,14 @@
 <div class="app">
   <aside>
     <p class="brand">MOTION LAB<small>自分用モーションライブラリ</small></p>
+    <p class="intro">認識合わせのための実物集です。動きを見比べて、選んだ値をコピーして使います。<a href="https://github.com/tttdddkkk/motion-lab/blob/main/docs/philosophy.md" target="_blank" rel="noopener" aria-label="なぜ作るか（新しいタブで開きます）">なぜ作るか</a></p>
+    <div class="seg" id="mode" role="group" aria-label="表示の切り替え" style="margin-bottom:12px"></div>
     <div class="filters" id="filters"></div>
     <ul class="list" id="list"></ul>
+    <ul class="list" id="cmp-nav" hidden></ul>
   </aside>
 
-  <main>
+  <main id="viewer">
     <header>
       <h1 id="title"></h1>
       <p class="desc" id="desc"></p>
@@ -110,6 +116,8 @@
       <pre><code id="code"></code></pre>
     </section>
   </main>
+
+  <main id="compare" hidden></main>
 </div>
 
 <script type="module">
@@ -123,7 +131,12 @@ const CATS = [['all', 'すべて'], ['button', 'ボタン'], ['transition', '画
 const SPEEDS = [0.5, 1, 2];
 const TABS = [['css', 'CSS'], ['waapi', 'WAAPI'], ['reduced', '動きを減らす場合']];
 
-const state = { cat: 'all', id: MOTIONS[0].id, rate: 1, tab: 'css', runId: 0, instance: null };
+/* URL の #<id> で、最初に開くモーションを指定できる（PR のプレビュー確認用）。該当がなければ先頭 */
+const hashId = (() => { try { return decodeURIComponent(location.hash.slice(1)); } catch { return ''; } })();
+const initialId = MOTIONS.some(m => m.id === hashId) ? hashId : MOTIONS[0].id;
+
+let mode = location.hash === '#compare' ? 'compare' : 'viewer';
+const state = { cat: 'all', id: initialId, rate: 1, tab: 'css', runId: 0, instance: null };
 
 const ctx = {
   dur: ms => ms / state.rate,
@@ -162,7 +175,7 @@ function renderSpeed() {
     const b = document.createElement('button');
     b.textContent = s + '×';
     b.setAttribute('aria-pressed', state.rate === s);
-    b.onclick = () => { state.rate = s; renderSpeed(); play(); };
+    b.onclick = () => { state.rate = s; renderSpeed(); renderInfo(); play(); };
     $('speed').appendChild(b);
   });
 }
@@ -182,6 +195,12 @@ function renderCode() {
   $('code').textContent = current().code[state.tab];
 }
 
+/* 再生速度を反映した実際の時間。1× のときは元の値だけを出す */
+function durationText(ms) {
+  if (state.rate === 1) return `${ms}ms`;
+  return `${Math.round(ms / state.rate)}ms（${state.rate}×・元は ${ms}ms）`;
+}
+
 function renderInfo() {
   const m = current();
   $('title').textContent = m.name;
@@ -189,12 +208,13 @@ function renderInfo() {
   $('facts').innerHTML = `
     <dt>感触</dt><dd>${m.feel}</dd>
     <dt>用途</dt><dd>${m.use}</dd>
-    <dt>時間</dt><dd>${m.ms}ms</dd>
+    <dt>時間</dt><dd>${durationText(m.ms)}</dd>
     <dt>イージング</dt><dd><code>${m.easing}</code></dd>`;
 }
 
 function select(id) {
   state.id = id;
+  if (mode === 'viewer') history.replaceState(null, '', '#' + encodeURIComponent(id));
   state.runId++;
   state.instance = current().setup($('stage'), ctx);
   renderList(); renderInfo(); renderCode();
@@ -223,15 +243,66 @@ $('copy').onclick = async () => {
   setTimeout(() => $('copy').textContent = 'コピー', 1200);
 };
 document.addEventListener('keydown', e => {
-  if (e.target.matches('input, textarea')) return;
+  if (mode !== 'viewer' || e.target.matches('input, textarea')) return;
   const list = visible(); const i = list.findIndex(m => m.id === state.id);
   if (e.code === 'Space') { e.preventDefault(); play(); }
   if (e.key === 'ArrowRight' && list[i + 1]) select(list[i + 1].id);
   if (e.key === 'ArrowLeft' && list[i - 1]) select(list[i - 1].id);
 });
 
-renderFilters(); renderSpeed(); renderTabs();
+/* 表示の切り替え（モーション / 差分比較） */
+const MODES = [['viewer', 'モーション'], ['compare', '差分比較']];
+let compareLoaded = false;
+
+function renderMode() {
+  $('mode').innerHTML = '';
+  MODES.forEach(([key, label]) => {
+    const b = document.createElement('button');
+    b.textContent = label;
+    b.setAttribute('aria-pressed', mode === key);
+    b.onclick = () => setMode(key);
+    $('mode').appendChild(b);
+  });
+}
+
+async function setMode(next) {
+  state.runId++; /* モーションのループ再生を止める */
+  mode = next;
+  $('viewer').hidden = mode !== 'viewer';
+  $('compare').hidden = mode !== 'compare';
+  $('filters').hidden = $('list').hidden = mode !== 'viewer';
+  $('cmp-nav').hidden = mode !== 'compare';
+  renderMode();
+  if (mode === 'compare') {
+    history.replaceState(null, '', '#compare');
+    if (!compareLoaded) {
+      compareLoaded = true;
+      try {
+        const { mountCompare } = await import('./motions/compare-ui.js');
+        mountCompare({ root: $('compare'), nav: $('cmp-nav') });
+      } catch (e) {
+        compareLoaded = false;
+        $('compare').textContent = '差分比較を読み込めませんでした。';
+      }
+    }
+  } else {
+    history.replaceState(null, '', '#' + encodeURIComponent(state.id));
+  }
+}
+
+/* ページを開いたまま # だけが変わった場合（再読み込みされない）にも追従する */
+window.addEventListener('hashchange', () => {
+  if (location.hash === '#compare') { if (mode !== 'compare') setMode('compare'); return; }
+  let id = '';
+  try { id = decodeURIComponent(location.hash.slice(1)); } catch { return; }
+  if (!MOTIONS.some(m => m.id === id)) return;
+  if (mode !== 'viewer') setMode('viewer');
+  if (id !== state.id) select(id);
+});
+
+renderFilters(); renderSpeed(); renderTabs(); renderMode();
 select(state.id);
+if (mode === 'compare') setMode('compare');
 </script>
 </body>
 </html>
