@@ -17,3 +17,4 @@
 | [0008](0008-comment-flow-patent-constraints.md) | 流れる文字のモーションは、映像と重ならない別枠で作る | 採用 |
 | [0009](0009-branch-preview-and-ci-for-mobile.md) | 出先（スマホ）での開発確認を「ブランチ別プレビュー環境＋CI」で行う | 採用 |
 | [0010](0010-netlify-deploy-preview.md) | PR のプレビューに Netlify Deploy Preview を使う | 採用 |
+| [0011](0011-viewer-open-motion-by-url-hash.md) | ビューアは URL の `#<id>` で最初に開くモーションを指定できるようにする | 採用 |
