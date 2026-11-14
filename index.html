@@ -245,7 +245,8 @@ $('copy').onclick = async () => {
 document.addEventListener('keydown', e => {
   if (mode !== 'viewer' || e.target.matches('input, textarea')) return;
   const list = visible(); const i = list.findIndex(m => m.id === state.id);
-  if (e.code === 'Space') { e.preventDefault(); play(); }
+  /* ボタンの上では Space を横取りしない（モーション内の一時停止ボタンなどを押せるように） */
+  if (e.code === 'Space' && !e.target.closest('button')) { e.preventDefault(); play(); }
   if (e.key === 'ArrowRight' && list[i + 1]) select(list[i + 1].id);
   if (e.key === 'ArrowLeft' && list[i - 1]) select(list[i - 1].id);
 });
@@ -274,6 +275,8 @@ async function setMode(next) {
   $('cmp-nav').hidden = mode !== 'compare';
   renderMode();
   if (mode === 'compare') {
+    $('stage').replaceChildren(); /* 非表示のモーションを動かし続けない（戻ったときに作り直す） */
+    state.instance = null;
     history.replaceState(null, '', '#compare');
     if (!compareLoaded) {
       compareLoaded = true;
@@ -286,7 +289,7 @@ async function setMode(next) {
       }
     }
   } else {
-    history.replaceState(null, '', '#' + encodeURIComponent(state.id));
+    select(state.id);
   }
 }
 
