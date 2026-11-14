@@ -205,6 +205,6 @@ export function mountCompare({ root, nav }) {
     const b = e.target.closest('button'); if (!b) return;
     const id = b.dataset.jump ? `cmp-${b.dataset.jump}` : null;
     const target = id ? root.querySelector(`#${id}`) : root.querySelector(`[data-section="${b.dataset.jumpSection}"]`);
-    target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    target?.scrollIntoView({ behavior: mq.matches ? 'auto' : 'smooth', block: 'start' });
   };
 }
