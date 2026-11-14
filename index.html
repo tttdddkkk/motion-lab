@@ -166,7 +166,7 @@ function renderSpeed() {
     const b = document.createElement('button');
     b.textContent = s + '×';
     b.setAttribute('aria-pressed', state.rate === s);
-    b.onclick = () => { state.rate = s; renderSpeed(); play(); };
+    b.onclick = () => { state.rate = s; renderSpeed(); renderInfo(); play(); };
     $('speed').appendChild(b);
   });
 }
@@ -186,6 +186,12 @@ function renderCode() {
   $('code').textContent = current().code[state.tab];
 }
 
+/* 再生速度を反映した実際の時間。1× のときは元の値だけを出す */
+function durationText(ms) {
+  if (state.rate === 1) return `${ms}ms`;
+  return `${Math.round(ms / state.rate)}ms（${state.rate}×・元は ${ms}ms）`;
+}
+
 function renderInfo() {
   const m = current();
   $('title').textContent = m.name;
@@ -193,7 +199,7 @@ function renderInfo() {
   $('facts').innerHTML = `
     <dt>感触</dt><dd>${m.feel}</dd>
     <dt>用途</dt><dd>${m.use}</dd>
-    <dt>時間</dt><dd>${m.ms}ms</dd>
+    <dt>時間</dt><dd>${durationText(m.ms)}</dd>
     <dt>イージング</dt><dd><code>${m.easing}</code></dd>`;
 }
 
