@@ -119,3 +119,7 @@ export const PressBounce = story('press-bounce');
 export const Ripple = story('ripple');
 export const CircleReveal = story('circle-reveal');
 export const FlowSeek = story('flow-seek');
+export const ToastSlide = story('toast-slide');
+export const BannerDrop = story('banner-drop');
+export const NewPill = story('new-pill');
+export const BadgePop = story('badge-pop');

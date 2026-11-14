@@ -380,5 +380,323 @@ range.addEventListener('change', () => {
   10%, 90% { opacity: 1; }
 }`
     }
+  },
+
+  // ---- メッセージ（通知系）。チャットはコメントに含める（docs/adr/0014） ----
+  {
+    id: 'toast-slide',
+    cat: 'message',
+    name: 'トースト（スライドイン）',
+    feel: 'すっと・控えめ',
+    use: '保存・送信の完了通知',
+    ms: 350,
+    easing: 'cubic-bezier(.2, 0, 0, 1)',
+    desc: '画面の右下から通知が横にスライドインし、数秒見せてから右へ戻って消える。時間は入る長さで、出る長さは250ms、見せる時間は2.5秒。',
+    setup(stage, ctx) {
+      const IN = 350, OUT = 250, HOLD = 2500;
+      stage.innerHTML = `
+        <div class="ntf">
+          <div class="ntf-row"></div><div class="ntf-row"></div><div class="ntf-row"></div><div class="ntf-row"></div>
+        </div>`;
+      const root = stage.querySelector('.ntf');
+      const wait = ms => new Promise(r => setTimeout(r, ctx.dur(ms)));
+      const finish = a => a.finished.catch(() => {});
+      let token = 0;
+
+      const run = async () => {
+        const my = ++token;
+        root.querySelectorAll('.ntf-toast').forEach(el => el.remove());
+        const toast = document.createElement('div');
+        toast.className = 'ntf-toast';
+        toast.setAttribute('role', 'status');
+        toast.innerHTML = '<span class="ntf-dot"></span>保存しました';
+        root.append(toast);
+        const reduced = ctx.reduced();
+        const enter = reduced
+          ? [{ opacity: 0 }, { opacity: 1 }]
+          : [{ transform: 'translateX(calc(100% + 12px))' }, { transform: 'translateX(0)' }];
+        await finish(toast.animate(enter, { duration: ctx.dur(reduced ? 200 : IN), easing: reduced ? 'linear' : 'cubic-bezier(.2, 0, 0, 1)', fill: 'backwards' }));
+        await wait(HOLD);
+        if (my !== token || !root.isConnected) return;
+        const leave = reduced
+          ? [{ opacity: 1 }, { opacity: 0 }]
+          : [{ transform: 'translateX(0)' }, { transform: 'translateX(calc(100% + 12px))' }];
+        await finish(toast.animate(leave, { duration: ctx.dur(reduced ? 200 : OUT), easing: reduced ? 'linear' : 'cubic-bezier(.4, 0, 1, 1)', fill: 'forwards' }));
+        toast.remove();
+      };
+      return { run };
+    },
+    code: {
+      css: `.toast {
+  position: fixed; right: 12px; bottom: 16px;
+  animation:
+    toast-in  .35s cubic-bezier(.2, 0, 0, 1) both,
+    toast-out .25s cubic-bezier(.4, 0, 1, 1) 2.85s forwards; /* 入る + 2.5s 見せてから出る */
+}
+@keyframes toast-in {
+  from { transform: translateX(calc(100% + 12px)); }
+  to   { transform: translateX(0); }
+}
+@keyframes toast-out {
+  from { transform: translateX(0); }
+  to   { transform: translateX(calc(100% + 12px)); }
+}`,
+      waapi: `const OFF = 'translateX(calc(100% + 12px))';
+await toast.animate(
+  [{ transform: OFF }, { transform: 'translateX(0)' }],
+  { duration: 350, easing: 'cubic-bezier(.2, 0, 0, 1)', fill: 'backwards' }
+).finished;
+
+await new Promise(r => setTimeout(r, 2500));   // 見せておく
+
+await toast.animate(
+  [{ transform: 'translateX(0)' }, { transform: OFF }],
+  { duration: 250, easing: 'cubic-bezier(.4, 0, 1, 1)', fill: 'forwards' }
+).finished;
+toast.remove();`,
+      reduced: `@media (prefers-reduced-motion: reduce) {
+  /* 横には動かさず、不透明度だけで出入りする */
+  .toast { animation: toast-fade-in .2s linear both, toast-fade-out .2s linear 2.7s forwards; }
+}
+@keyframes toast-fade-in  { from { opacity: 0; } to { opacity: 1; } }
+@keyframes toast-fade-out { from { opacity: 1; } to { opacity: 0; } }`
+    }
+  },
+  {
+    id: 'banner-drop',
+    cat: 'message',
+    name: 'バナー（上から降りる）',
+    feel: '目立つ・知らせる',
+    use: '重要なお知らせ・新着通知',
+    ms: 400,
+    easing: 'cubic-bezier(.22, 1.2, .36, 1)',
+    desc: '画面の上端から通知が降りてきて、わずかに弾んで止まる。数秒見せてから上へ戻って消える。時間は降りる長さで、戻る長さは250ms、見せる時間は2.5秒。',
+    setup(stage, ctx) {
+      const IN = 400, OUT = 250, HOLD = 2500;
+      stage.innerHTML = `
+        <div class="ntf">
+          <div class="ntf-row"></div><div class="ntf-row"></div><div class="ntf-row"></div><div class="ntf-row"></div>
+        </div>`;
+      const root = stage.querySelector('.ntf');
+      const wait = ms => new Promise(r => setTimeout(r, ctx.dur(ms)));
+      const finish = a => a.finished.catch(() => {});
+      let token = 0;
+
+      const run = async () => {
+        const my = ++token;
+        root.querySelectorAll('.ntf-banner').forEach(el => el.remove());
+        const banner = document.createElement('div');
+        banner.className = 'ntf-banner';
+        banner.setAttribute('role', 'status');
+        banner.innerHTML = '<strong>新着のお知らせ</strong><span>3件の更新があります</span>';
+        root.append(banner);
+        const reduced = ctx.reduced();
+        const enter = reduced
+          ? [{ opacity: 0 }, { opacity: 1 }]
+          : [{ transform: 'translateY(calc(-100% - 10px))' }, { transform: 'translateY(0)' }];
+        await finish(banner.animate(enter, { duration: ctx.dur(reduced ? 200 : IN), easing: reduced ? 'linear' : 'cubic-bezier(.22, 1.2, .36, 1)', fill: 'backwards' }));
+        await wait(HOLD);
+        if (my !== token || !root.isConnected) return;
+        const leave = reduced
+          ? [{ opacity: 1 }, { opacity: 0 }]
+          : [{ transform: 'translateY(0)' }, { transform: 'translateY(calc(-100% - 10px))' }];
+        await finish(banner.animate(leave, { duration: ctx.dur(reduced ? 200 : OUT), easing: reduced ? 'linear' : 'cubic-bezier(.4, 0, 1, 1)', fill: 'forwards' }));
+        banner.remove();
+      };
+      return { run };
+    },
+    code: {
+      css: `.banner {
+  position: fixed; top: 10px; left: 10px; right: 10px;
+  animation:
+    banner-in  .4s cubic-bezier(.22, 1.2, .36, 1) both,
+    banner-out .25s cubic-bezier(.4, 0, 1, 1) 2.9s forwards; /* 降りる + 2.5s 見せてから戻る */
+}
+@keyframes banner-in {
+  from { transform: translateY(calc(-100% - 10px)); }
+  to   { transform: translateY(0); }
+}
+@keyframes banner-out {
+  from { transform: translateY(0); }
+  to   { transform: translateY(calc(-100% - 10px)); }
+}`,
+      waapi: `const OFF = 'translateY(calc(-100% - 10px))';
+await banner.animate(
+  [{ transform: OFF }, { transform: 'translateY(0)' }],
+  { duration: 400, easing: 'cubic-bezier(.22, 1.2, .36, 1)', fill: 'backwards' }
+).finished;
+
+await new Promise(r => setTimeout(r, 2500));   // 見せておく
+
+await banner.animate(
+  [{ transform: 'translateY(0)' }, { transform: OFF }],
+  { duration: 250, easing: 'cubic-bezier(.4, 0, 1, 1)', fill: 'forwards' }
+).finished;
+banner.remove();`,
+      reduced: `@media (prefers-reduced-motion: reduce) {
+  /* 縦には動かさず、不透明度だけで出入りする */
+  .banner { animation: banner-fade-in .2s linear both, banner-fade-out .2s linear 2.7s forwards; }
+}
+@keyframes banner-fade-in  { from { opacity: 0; } to { opacity: 1; } }
+@keyframes banner-fade-out { from { opacity: 1; } to { opacity: 0; } }`
+    }
+  },
+  {
+    id: 'new-pill',
+    cat: 'message',
+    name: '新着ピル',
+    feel: '控えめ・誘導',
+    use: 'フィード・一覧の未読への誘導',
+    ms: 300,
+    easing: 'cubic-bezier(.34, 1.56, .64, 1)',
+    desc: '一覧の下端に「新着 3 件」のピルが小さく弾んで現れ、押されるまで残る。デモでは約2秒後に自動で押されたことにして、フェードして消える。押して消すこともできる。',
+    setup(stage, ctx) {
+      const IN = 300, OUT = 200, HOLD = 2000;
+      stage.innerHTML = `
+        <div class="ntf">
+          <div class="ntf-row"></div><div class="ntf-row"></div><div class="ntf-row"></div><div class="ntf-row"></div>
+          <div class="ntf-row"></div><div class="ntf-row"></div>
+        </div>`;
+      const root = stage.querySelector('.ntf');
+      const wait = ms => new Promise(r => setTimeout(r, ctx.dur(ms)));
+      const finish = a => a.finished.catch(() => {});
+      let token = 0;
+
+      const run = async () => {
+        const my = ++token;
+        root.querySelectorAll('.ntf-pill').forEach(el => el.remove());
+        const pill = document.createElement('button');
+        pill.type = 'button';
+        pill.className = 'ntf-pill';
+        pill.textContent = '↓ 新着 3 件';
+        root.append(pill);
+        const reduced = ctx.reduced();
+        const enter = reduced
+          ? [{ opacity: 0 }, { opacity: 1 }]
+          : [{ transform: 'translateY(12px) scale(.9)', opacity: 0 }, { transform: 'translateY(0) scale(1)', opacity: 1 }];
+        await finish(pill.animate(enter, { duration: ctx.dur(reduced ? 200 : IN), easing: reduced ? 'linear' : 'cubic-bezier(.34, 1.56, .64, 1)', fill: 'backwards' }));
+        // 押されるか、一定時間たつまで残す
+        await Promise.race([wait(HOLD), new Promise(r => pill.addEventListener('click', r, { once: true }))]);
+        if (my !== token || !root.isConnected) return;
+        await finish(pill.animate([{ opacity: 1 }, { opacity: 0 }], { duration: ctx.dur(OUT), easing: 'linear', fill: 'forwards' }));
+        pill.remove();
+      };
+      return { run };
+    },
+    code: {
+      css: `.pill {
+  position: absolute; bottom: 20px; left: 0; right: 0; margin-inline: auto; width: fit-content;
+  animation: pill-in .3s cubic-bezier(.34, 1.56, .64, 1) both;
+}
+@keyframes pill-in {
+  from { transform: translateY(12px) scale(.9); opacity: 0; }
+  to   { transform: translateY(0) scale(1); opacity: 1; }
+}
+/* 押されたら（またはデモの時間がたったら）フェードして消す */
+.pill.is-dismissed { opacity: 0; transition: opacity .2s linear; }`,
+      waapi: `await pill.animate(
+  [{ transform: 'translateY(12px) scale(.9)', opacity: 0 },
+   { transform: 'translateY(0) scale(1)', opacity: 1 }],
+  { duration: 300, easing: 'cubic-bezier(.34, 1.56, .64, 1)', fill: 'backwards' }
+).finished;
+
+// 押されるまで残す（デモは2秒で自動）
+await Promise.race([
+  new Promise(r => setTimeout(r, 2000)),
+  new Promise(r => pill.addEventListener('click', r, { once: true })),
+]);
+
+await pill.animate(
+  [{ opacity: 1 }, { opacity: 0 }],
+  { duration: 200, easing: 'linear', fill: 'forwards' }
+).finished;
+pill.remove();`,
+      reduced: `@media (prefers-reduced-motion: reduce) {
+  /* 位置と大きさは変えず、不透明度だけで出す */
+  .pill { animation: pill-fade-in .2s linear both; }
+}
+@keyframes pill-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}`
+    }
+  },
+  {
+    id: 'badge-pop',
+    cat: 'message',
+    name: 'バッジ（件数ポコっ）',
+    feel: '軽快・弾む',
+    use: '未読件数・通知数の更新',
+    ms: 400,
+    easing: 'cubic-bezier(.34, 1.56, .64, 1)',
+    desc: 'ベルのアイコンの件数バッジが、数字が変わるたびに小さな状態から弾んで現れる。件数は1秒ごとに1→2→3→4と増え、最後に少し見せて戻る。',
+    setup(stage, ctx) {
+      const POP = 400, STEP = 1000, HOLD = 800;
+      stage.innerHTML = `
+        <div class="ntf">
+          <div class="ntf-head">
+            <strong>受信箱</strong>
+            <span class="ntf-bell" aria-label="通知">
+              <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path fill="currentColor" d="M12 3a6 6 0 0 0-6 6v3.5L4 16v1h16v-1l-2-3.5V9a6 6 0 0 0-6-6zm0 18a2.5 2.5 0 0 0 2.4-2H9.6A2.5 2.5 0 0 0 12 21z"/></svg>
+              <span class="ntf-badge" role="status">1</span>
+            </span>
+          </div>
+          <div class="ntf-row"></div><div class="ntf-row"></div><div class="ntf-row"></div><div class="ntf-row"></div>
+        </div>`;
+      const root = stage.querySelector('.ntf');
+      const badge = stage.querySelector('.ntf-badge');
+      const wait = ms => new Promise(r => setTimeout(r, ctx.dur(ms)));
+      let token = 0;
+
+      const bump = n => {
+        badge.textContent = String(n);
+        const reduced = ctx.reduced();
+        badge.animate(
+          reduced ? [{ opacity: .3 }, { opacity: 1 }]
+                  : [{ transform: 'scale(.4)', opacity: .4 }, { transform: 'scale(1)', opacity: 1 }],
+          { duration: ctx.dur(reduced ? 200 : POP), easing: reduced ? 'linear' : 'cubic-bezier(.34, 1.56, .64, 1)' }
+        );
+      };
+
+      const run = async () => {
+        const my = ++token;
+        badge.textContent = '1';
+        for (const n of [2, 3, 4]) {
+          await wait(STEP);
+          if (my !== token || !root.isConnected) return;
+          bump(n);
+        }
+        await wait(POP + HOLD);
+        if (my === token && root.isConnected) badge.textContent = '1';
+      };
+      return { run };
+    },
+    code: {
+      css: `.badge { transform-origin: center; }
+.badge.is-updated {
+  animation: badge-pop .4s cubic-bezier(.34, 1.56, .64, 1);
+}
+@keyframes badge-pop {
+  from { transform: scale(.4); opacity: .4; }
+  to   { transform: scale(1); opacity: 1; }
+}
+/* 数字を書き換えるたびに is-updated を付け直す（animationend で外す） */`,
+      waapi: `function bump(n) {
+  badge.textContent = String(n);
+  badge.animate(
+    [{ transform: 'scale(.4)', opacity: .4 },
+     { transform: 'scale(1)', opacity: 1 }],
+    { duration: 400, easing: 'cubic-bezier(.34, 1.56, .64, 1)' }
+  );
+}`,
+      reduced: `@media (prefers-reduced-motion: reduce) {
+  /* 大きさは変えず、不透明度だけで更新を知らせる */
+  .badge.is-updated { animation: badge-flash .2s linear; }
+}
+@keyframes badge-flash {
+  from { opacity: .3; }
+  to   { opacity: 1; }
+}`
+    }
   }
 ];
