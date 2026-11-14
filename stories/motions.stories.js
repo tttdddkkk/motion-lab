@@ -99,6 +99,41 @@ function story(id) {
         });
       }
 
+      if (stage.querySelector('.flow.is-vertical') || motion.id === 'flow-seek-vertical') {
+        await step('縦: 折り返した文字が重ならず、終了時には枠の外へ出きる', async () => {
+          motion.setup(stage, { dur: ms => ms / 4, reduced: () => false }).run().catch(() => {});
+          await frame();
+          const range = stage.querySelector('input[type="range"]');
+          const frameEl = stage.querySelector('.flow-frame');
+          const items = [...stage.querySelectorAll('.flow-item')];
+          const seekTo = value => {
+            range.dispatchEvent(new PointerEvent('pointerdown'));
+            range.value = String(value);
+            range.dispatchEvent(new Event('input'));
+          };
+          // 折り返して2行以上になる文字がある（デモの前提）
+          await expect(Math.max(...items.map(el => el.getBoundingClientRect().height))).toBeGreaterThan(30);
+          const area = frameEl.getBoundingClientRect();
+          for (let v = 0; v <= 1000; v += 20) {
+            seekTo(v);
+            const shown = items.map(el => el.getBoundingClientRect())
+              .filter(r => r.bottom > area.top && r.top < area.bottom);
+            // 枠の右端からはみ出さない
+            for (const r of shown) await expect(r.right).toBeLessThanOrEqual(area.right + 1);
+            for (let i = 0; i < shown.length; i++) for (let j = i + 1; j < shown.length; j++) {
+              const a = shown[i], b = shown[j];
+              const overlap = a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+              await expect(overlap).toBe(false);
+            }
+          }
+          // 終了時: すべての文字が枠の上に出きっている
+          seekTo(1000);
+          for (const el of items) await expect(el.getBoundingClientRect().bottom).toBeLessThanOrEqual(area.top + 1);
+          seekTo(0);
+          stage.getAnimations({ subtree: true }).forEach(a => a.cancel());
+        });
+      }
+
       const button = stage.querySelector('button.demo-btn');
       if (button) {
         await step('ボタンをクリックするとアニメーションが始まる', async () => {

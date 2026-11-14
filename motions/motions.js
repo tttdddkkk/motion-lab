@@ -9,14 +9,18 @@
    映像と重ねない・行は固定・投稿や重なり回避は作らない（docs/adr/0008, 0013） */
 function flowSeek(stage, ctx, { vertical }) {
   const CROSS = vertical ? 4000 : 3000;   // 1つの文字が枠を横切る時間
-  const END = vertical ? -30 : -140;      // 文字が枠の端（横: 左、縦: 上）に出きる位置(px)
+  // 文字が枠の端に出きる位置。横は最長の文字が左に出きる位置(px)。
+  // 縦は折り返しで高さが変わるため、文字自身の高さ(-100%)にする
+  const END = vertical ? '-100%' : '-140px';
   const axis = vertical ? 'Y' : 'X';
   const ITEMS = [
     { t: 0,    lane: 0, text: 'はじまった' },
     { t: 400,  lane: 1, text: 'こんばんは' },
     { t: 900,  lane: 2, text: '音がいい' },
     { t: 1600, lane: 0, text: 'ここ好き' },
-    { t: 2200, lane: 1, text: 'なるほど' },
+    // 縦版は枠が狭く折り返すため、2行になる長い文字を1件入れる。
+    // 行は固定で重なりを自動では避けないので、前後の文字との間隔（600ms以上）を空けてある
+    { t: 2200, lane: 1, text: vertical ? 'このサビが何度聴いても好き' : 'なるほど' },
     { t: 2800, lane: 2, text: 'もう一回見たい' },
     { t: 3400, lane: 0, text: 'きれい' },
     { t: 4000, lane: 1, text: 'わかる' },
@@ -77,7 +81,7 @@ function flowSeek(stage, ctx, { vertical }) {
       el.classList.toggle('is-static', reduced);
       if (!reduced) {
         return el.animate(
-          [{ transform: `translate${axis}(${W}px)` }, { transform: `translate${axis}(${END}px)` }],
+          [{ transform: `translate${axis}(${W}px)` }, { transform: `translate${axis}(${END})` }],
           { duration: ctx.dur(CROSS), delay: ctx.dur(t), easing: 'linear', fill: 'both' }
         );
       }
@@ -393,29 +397,31 @@ range.addEventListener('change', () => {
     use: '縦長の枠での実況・字幕',
     ms: 4000,
     easing: 'linear',
-    desc: '映像の横の枠で文字が下から上へ流れる。シークバーで進めたり戻したりできる。「流れる文字+シーク」から方向だけを縦にしたもの。時間は1つの文字が枠を横切る長さで、全体は約8.7秒。',
+    desc: '映像の横の枠で文字が下から上へ流れる。シークバーで進めたり戻したりできる。「流れる文字+シーク」から方向だけを縦にしたもので、枠が狭いため長い文字は折り返す。時間は1つの文字が枠を横切る長さで、全体は約8.7秒。',
     setup(stage, ctx) { return flowSeek(stage, ctx, { vertical: true }); },
     code: {
       css: `.frame { position: relative; overflow: hidden; container-type: size; }
 .item {
-  position: absolute; top: 0; left: var(--x); white-space: nowrap;
+  position: absolute; top: 0; left: var(--x);
+  /* 枠が狭いので折り返す。右端に余白を残す */
+  max-width: calc(100% - var(--x) - 8px); overflow-wrap: anywhere;
   animation: flow-up 4s linear both;
   animation-delay: var(--t); /* 出現時刻（例: 1.6s） */
 }
 @keyframes flow-up {
   from { transform: translateY(100cqh); }
-  to   { transform: translateY(-30px); }
+  to   { transform: translateY(-100%); } /* 折り返しても、文字自身の高さぶん上に出きる */
 }
 /* シーク: 一時停止して、遅延を「出現時刻 − シーク位置」にずらす */
 .frame.is-seeking .item {
   animation-play-state: paused;
   animation-delay: calc(var(--t) - var(--seek));
 }`,
-      waapi: `const CROSS = 4000, END = -30;
+      waapi: `const CROSS = 4000;
 const H = frame.clientHeight;
 const anims = items.map(({ el, t }) => el.animate(
   [{ transform: \`translateY(\${H}px)\` },
-   { transform: \`translateY(\${END}px)\` }],
+   { transform: 'translateY(-100%)' }],   // 折り返しても、文字自身の高さぶん上に出きる
   { duration: CROSS, delay: t, easing: 'linear', fill: 'both' }
 ));
 
@@ -436,7 +442,8 @@ range.addEventListener('change', () => {
       reduced: `@media (prefers-reduced-motion: reduce) {
   /* 流さずに定位置で表示し、出入りは不透明度だけで切り替える。
      表示期間 --dur は「同じ行の次の文字が出るまで（最長4s）」にして重ならないようにする */
-  .item { top: calc(8px + var(--lane) * 28px); left: 8px;
+  /* 行の間隔は、折り返して2行になっても重ならない高さ（48px）にする */
+  .item { top: calc(8px + var(--lane) * 48px); left: 8px;
           animation-name: flow-fade; animation-duration: var(--dur); }
 }
 @keyframes flow-fade {
