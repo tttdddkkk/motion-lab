@@ -21,6 +21,8 @@
   @media (max-width: 820px) { aside { border-right: 0; border-bottom: 1px solid var(--line); } }
   .brand { font-weight: 700; letter-spacing: .08em; margin: 0 0 16px; }
   .brand small { display: block; font-weight: 400; color: var(--sub); letter-spacing: 0; }
+  .intro { margin: -8px 0 16px; color: var(--sub); font-size: 12px; line-height: 1.6; }
+  .intro a { color: var(--accent); }
   .filters { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
   .chip {
     border: 1px solid var(--line); background: transparent; border-radius: 999px;
@@ -78,6 +80,7 @@
 <div class="app">
   <aside>
     <p class="brand">MOTION LAB<small>自分用モーションライブラリ</small></p>
+    <p class="intro">認識合わせのための実物集です。動きを見比べて、選んだ値をコピーして使います。<a href="https://github.com/tttdddkkk/motion-lab/blob/main/docs/philosophy.md" target="_blank" rel="noopener">なぜ作るか</a></p>
     <div class="filters" id="filters"></div>
     <ul class="list" id="list"></ul>
   </aside>
