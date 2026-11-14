@@ -36,8 +36,8 @@
 .flow.is-vertical { grid-template-columns: 1fr 150px; grid-template-rows: 1fr auto; }
 .flow.is-vertical .flow-bar { grid-column: 1 / -1; }
 .flow.is-vertical .flow-frame { height: auto; border-top: 0; border-left: 1px solid rgba(255,255,255,.08); }
-/* 枠が狭いので折り返す。右端に8pxの余白を残す */
-.flow.is-vertical .flow-item { top: 0; left: var(--x); max-width: calc(100% - var(--x) - 8px); white-space: normal; overflow-wrap: anywhere; }
+/* 全件、左端にそろえる。枠が狭いので折り返し、左右に8pxの余白を残す */
+.flow.is-vertical .flow-item { top: 0; left: 8px; max-width: calc(100% - 16px); white-space: normal; overflow-wrap: anywhere; }
 /* 静止表示の行間は、2行に折り返しても重ならない48px */
 .flow.is-vertical .flow-item.is-static { top: calc(8px + var(--lane) * 48px); left: 8px; max-width: calc(100% - 16px); }
 .flow-bar { display: flex; gap: 8px; align-items: center; padding: 10px 12px 14px; background: #0f131b; }

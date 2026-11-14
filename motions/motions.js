@@ -32,7 +32,7 @@ function flowSeek(stage, ctx, { vertical }) {
     <div class="flow${vertical ? ' is-vertical' : ''}">
       <div class="flow-media"></div>
       <div class="flow-frame">${ITEMS.map(i =>
-        `<span class="flow-item" style="--lane:${i.lane};--x:${8 + i.lane * 16}px${vertical ? '' : `;top:${8 + i.lane * 28}px`}">${i.text}</span>`).join('')}</div>
+        `<span class="flow-item" style="--lane:${i.lane}${vertical ? '' : `;top:${8 + i.lane * 28}px`}">${i.text}</span>`).join('')}</div>
       <div class="flow-bar">
         <button class="flow-play" type="button" aria-label="一時停止">❚❚</button>
         <input class="flow-range" type="range" min="0" max="1000" value="0" aria-label="再生位置">
@@ -402,9 +402,9 @@ range.addEventListener('change', () => {
     code: {
       css: `.frame { position: relative; overflow: hidden; container-type: size; }
 .item {
-  position: absolute; top: 0; left: var(--x);
-  /* 枠が狭いので折り返す。右端に余白を残す */
-  max-width: calc(100% - var(--x) - 8px); overflow-wrap: anywhere;
+  position: absolute; top: 0; left: 8px; /* 全件、左端にそろえる */
+  /* 枠が狭いので折り返す。左右に8pxの余白を残す */
+  max-width: calc(100% - 16px); overflow-wrap: anywhere;
   animation: flow-up 4s linear both;
   animation-delay: var(--t); /* 出現時刻（例: 1.6s） */
 }
