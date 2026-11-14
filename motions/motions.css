@@ -40,9 +40,9 @@
 .ntf { position: absolute; inset: 0; overflow: hidden; background: #151a24; padding: 72px 16px 16px; display: grid; align-content: start; gap: 12px; box-sizing: border-box; }
 .ntf-row { height: 54px; border-radius: 12px; background: rgba(255,255,255,.08); }
 .ntf-toast {
-  position: absolute; right: 12px; bottom: 16px; max-width: 200px; box-sizing: border-box;
-  display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-radius: 12px;
-  background: #2f3a52; color: var(--text); font-size: 14px; line-height: 20px; box-shadow: 0 6px 18px rgba(0,0,0,.35);
+  position: absolute; bottom: 20px; left: 0; right: 0; margin-inline: auto; width: fit-content; max-width: calc(100% - 32px); box-sizing: border-box;
+  display: flex; align-items: center; gap: 8px; padding: 10px 16px; border: 0; border-radius: 999px;
+  background: #2f3a52; color: var(--text); font: inherit; font-size: 14px; line-height: 20px; box-shadow: 0 6px 18px rgba(0,0,0,.35);
 }
 .ntf-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: #4cc38a; }
 .ntf-banner {
@@ -52,11 +52,6 @@
 }
 .ntf-banner strong { font-size: 14px; }
 .ntf-banner span { opacity: .8; }
-.ntf-pill {
-  position: absolute; bottom: 20px; left: 0; right: 0; margin-inline: auto; width: fit-content;
-  border: 0; border-radius: 999px; padding: 8px 16px; background: var(--accent); color: #fff;
-  font-size: 13px; line-height: 18px; box-shadow: 0 6px 18px rgba(0,0,0,.35);
-}
 .ntf-head { position: absolute; top: 14px; left: 16px; right: 16px; display: flex; align-items: center; justify-content: space-between; color: var(--text); font-size: 16px; }
 .ntf-bell { position: relative; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; background: rgba(255,255,255,.1); color: var(--text); }
 .ntf-badge {

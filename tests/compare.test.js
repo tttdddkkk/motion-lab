@@ -2,7 +2,9 @@ import { expect, test } from 'vitest';
 import { COMPARE_GROUPS, SECTIONS, buildTracks, formatParams, toWaapiJson } from '../motions/compare.js';
 
 const variants = COMPARE_GROUPS.flatMap(g => g.variants.map(v => ({ g, v })));
-const TARGETS = new Set(['btn', 'ripple', 'incoming', 'outgoing', 'items', 'box', 'reveal']);
+const TARGETS = new Set(['btn', 'ripple', 'incoming', 'outgoing', 'items', 'box', 'reveal', 'toast']);
+/* アニメーションなし（mode: 'none'）は時間 0 で切り替える。時間とイージングの検査は別のテストで行う */
+const isNone = v => v.mode === 'none';
 
 test('バリアント ID は一意で、グループは必ずいずれかのセクションに属する', () => {
   const ids = variants.map(({ v }) => v.id);
@@ -41,7 +43,7 @@ test('すべてのバリアントが有効なトラックを作れ、調整値�
     for (const t of tracks) {
       expect(TARGETS.has(t.target), `${v.id} ${t.target}`).toBe(true);
       expect(t.keyframes.length, v.id).toBeGreaterThanOrEqual(2);
-      expect(t.options.duration, v.id).toBeGreaterThan(0);
+      if (!isNone(v)) expect(t.options.duration, v.id).toBeGreaterThan(0);
     }
     expect(tracks.some(t => t.main), v.id).toBe(true);
     expect(formatParams(params).length, v.id).toBeGreaterThan(0);
@@ -50,8 +52,28 @@ test('すべてのバリアントが有効なトラックを作れ、調整値�
     const adjusted = buildTracks(g, v, { duration: 777, easing: 'linear' });
     expect(adjusted.params.duration).toBe(777);
     const main = adjusted.tracks.find(t => t.main);
-    expect(main.options.easing, v.id).toBe('linear');
+    if (!isNone(v)) expect(main.options.easing, v.id).toBe('linear');
   }
+});
+
+test('アニメーションなしは、すべてのトラックが時間 0 で、調整値（時間・イージング）を受けても動かない', () => {
+  const nones = variants.filter(({ v }) => isNone(v));
+  expect(nones.length).toBeGreaterThan(0);
+  for (const { g, v } of nones) {
+    for (const override of [{}, { duration: 777, easing: 'linear' }]) {
+      for (const t of buildTracks(g, v, override).tracks) {
+        expect(t.options.duration, v.id).toBe(0);
+        expect(t.options.easing, v.id).toBeUndefined();
+      }
+    }
+  }
+});
+
+test('通知の方向差は from だけが違う', () => {
+  const g = COMPARE_GROUPS.find(x => x.id === 'd-dir');
+  const strip = v => ({ ...v.params, from: '' });
+  for (const v of g.variants) expect(strip(v)).toEqual(strip(g.variants[0]));
+  expect(new Set(g.variants.map(v => v.params.from)).size).toBe(g.variants.length);
 });
 
 test('速度差・時間差のバリアントは duration だけが違う', () => {

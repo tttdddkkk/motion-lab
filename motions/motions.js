@@ -384,16 +384,17 @@ range.addEventListener('change', () => {
 
   // ---- メッセージ（通知系）。チャットはコメントに含める（docs/adr/0014） ----
   {
-    id: 'toast-slide',
+    id: 'toast',
     cat: 'message',
-    name: 'トースト（スライドイン）',
+    name: 'トースト',
     feel: 'すっと・控えめ',
-    use: '保存・送信の完了通知',
-    ms: 350,
+    use: '保存・送信の完了通知（タップで閉じられる）',
+    ms: 300,
     easing: 'cubic-bezier(.2, 0, 0, 1)',
-    desc: '画面の右下から通知が横にスライドインし、数秒見せてから右へ戻って消える。時間は入る長さで、出る長さは250ms、見せる時間は2.5秒。',
+    desc: '画面の下中央に、ピル型の通知が下からスライドインする。2.5秒見せてから下へ戻って消える。押せばすぐ閉じる。時間は入る長さで、出る長さは250ms。方向・出し方の違いは「差分比較」の「D. 通知」で比べられる。',
     setup(stage, ctx) {
-      const IN = 350, OUT = 250, HOLD = 2500;
+      const IN = 300, OUT = 250, HOLD = 2500;
+      const OFF = 'translateY(calc(100% + 20px))';   // 下端の外
       stage.innerHTML = `
         <div class="ntf">
           <div class="ntf-row"></div><div class="ntf-row"></div><div class="ntf-row"></div><div class="ntf-row"></div>
@@ -406,7 +407,8 @@ range.addEventListener('change', () => {
       const run = async () => {
         const my = ++token;
         root.querySelectorAll('.ntf-toast').forEach(el => el.remove());
-        const toast = document.createElement('div');
+        const toast = document.createElement('button');
+        toast.type = 'button';
         toast.className = 'ntf-toast';
         toast.setAttribute('role', 'status');
         toast.innerHTML = '<span class="ntf-dot"></span>保存しました';
@@ -414,13 +416,14 @@ range.addEventListener('change', () => {
         const reduced = ctx.reduced();
         const enter = reduced
           ? [{ opacity: 0 }, { opacity: 1 }]
-          : [{ transform: 'translateX(calc(100% + 12px))' }, { transform: 'translateX(0)' }];
+          : [{ transform: OFF }, { transform: 'translateY(0)' }];
         await finish(toast.animate(enter, { duration: ctx.dur(reduced ? 200 : IN), easing: reduced ? 'linear' : 'cubic-bezier(.2, 0, 0, 1)', fill: 'backwards' }));
-        await wait(HOLD);
+        // 押されるか、一定時間たつまで見せる
+        await Promise.race([wait(HOLD), new Promise(r => toast.addEventListener('click', r, { once: true }))]);
         if (my !== token || !root.isConnected) return;
         const leave = reduced
           ? [{ opacity: 1 }, { opacity: 0 }]
-          : [{ transform: 'translateX(0)' }, { transform: 'translateX(calc(100% + 12px))' }];
+          : [{ transform: 'translateY(0)' }, { transform: OFF }];
         await finish(toast.animate(leave, { duration: ctx.dur(reduced ? 200 : OUT), easing: reduced ? 'linear' : 'cubic-bezier(.4, 0, 1, 1)', fill: 'forwards' }));
         toast.remove();
       };
@@ -428,34 +431,40 @@ range.addEventListener('change', () => {
     },
     code: {
       css: `.toast {
-  position: fixed; right: 12px; bottom: 16px;
+  position: fixed; bottom: 20px; left: 0; right: 0; margin-inline: auto; width: fit-content;
+  border-radius: 999px;
   animation:
-    toast-in  .35s cubic-bezier(.2, 0, 0, 1) both,
-    toast-out .25s cubic-bezier(.4, 0, 1, 1) 2.85s forwards; /* 入る + 2.5s 見せてから出る */
+    toast-in  .3s cubic-bezier(.2, 0, 0, 1) both,
+    toast-out .25s cubic-bezier(.4, 0, 1, 1) 2.8s forwards; /* 入る + 2.5s 見せてから出る */
 }
 @keyframes toast-in {
-  from { transform: translateX(calc(100% + 12px)); }
-  to   { transform: translateX(0); }
+  from { transform: translateY(calc(100% + 20px)); }
+  to   { transform: translateY(0); }
 }
 @keyframes toast-out {
-  from { transform: translateX(0); }
-  to   { transform: translateX(calc(100% + 12px)); }
-}`,
-      waapi: `const OFF = 'translateX(calc(100% + 12px))';
+  from { transform: translateY(0); }
+  to   { transform: translateY(calc(100% + 20px)); }
+}
+/* 押されたらすぐ閉じる場合は、JS で toast-out を始める（WAAPI のタブを参照） */`,
+      waapi: `const OFF = 'translateY(calc(100% + 20px))';
 await toast.animate(
-  [{ transform: OFF }, { transform: 'translateX(0)' }],
-  { duration: 350, easing: 'cubic-bezier(.2, 0, 0, 1)', fill: 'backwards' }
+  [{ transform: OFF }, { transform: 'translateY(0)' }],
+  { duration: 300, easing: 'cubic-bezier(.2, 0, 0, 1)', fill: 'backwards' }
 ).finished;
 
-await new Promise(r => setTimeout(r, 2500));   // 見せておく
+// 押されるか、2.5秒たつまで見せる
+await Promise.race([
+  new Promise(r => setTimeout(r, 2500)),
+  new Promise(r => toast.addEventListener('click', r, { once: true })),
+]);
 
 await toast.animate(
-  [{ transform: 'translateX(0)' }, { transform: OFF }],
+  [{ transform: 'translateY(0)' }, { transform: OFF }],
   { duration: 250, easing: 'cubic-bezier(.4, 0, 1, 1)', fill: 'forwards' }
 ).finished;
 toast.remove();`,
       reduced: `@media (prefers-reduced-motion: reduce) {
-  /* 横には動かさず、不透明度だけで出入りする */
+  /* 縦には動かさず、不透明度だけで出入りする */
   .toast { animation: toast-fade-in .2s linear both, toast-fade-out .2s linear 2.7s forwards; }
 }
 @keyframes toast-fade-in  { from { opacity: 0; } to { opacity: 1; } }
@@ -539,86 +548,6 @@ banner.remove();`,
 }
 @keyframes banner-fade-in  { from { opacity: 0; } to { opacity: 1; } }
 @keyframes banner-fade-out { from { opacity: 1; } to { opacity: 0; } }`
-    }
-  },
-  {
-    id: 'new-pill',
-    cat: 'message',
-    name: '新着ピル',
-    feel: '控えめ・誘導',
-    use: 'フィード・一覧の未読への誘導',
-    ms: 300,
-    easing: 'cubic-bezier(.34, 1.56, .64, 1)',
-    desc: '一覧の下端に「新着 3 件」のピルが小さく弾んで現れ、押されるまで残る。デモでは約2秒後に自動で押されたことにして、フェードして消える。押して消すこともできる。',
-    setup(stage, ctx) {
-      const IN = 300, OUT = 200, HOLD = 2000;
-      stage.innerHTML = `
-        <div class="ntf">
-          <div class="ntf-row"></div><div class="ntf-row"></div><div class="ntf-row"></div><div class="ntf-row"></div>
-          <div class="ntf-row"></div><div class="ntf-row"></div>
-        </div>`;
-      const root = stage.querySelector('.ntf');
-      const wait = ms => new Promise(r => setTimeout(r, ctx.dur(ms)));
-      const finish = a => a.finished.catch(() => {});
-      let token = 0;
-
-      const run = async () => {
-        const my = ++token;
-        root.querySelectorAll('.ntf-pill').forEach(el => el.remove());
-        const pill = document.createElement('button');
-        pill.type = 'button';
-        pill.className = 'ntf-pill';
-        pill.textContent = '↓ 新着 3 件';
-        root.append(pill);
-        const reduced = ctx.reduced();
-        const enter = reduced
-          ? [{ opacity: 0 }, { opacity: 1 }]
-          : [{ transform: 'translateY(12px) scale(.9)', opacity: 0 }, { transform: 'translateY(0) scale(1)', opacity: 1 }];
-        await finish(pill.animate(enter, { duration: ctx.dur(reduced ? 200 : IN), easing: reduced ? 'linear' : 'cubic-bezier(.34, 1.56, .64, 1)', fill: 'backwards' }));
-        // 押されるか、一定時間たつまで残す
-        await Promise.race([wait(HOLD), new Promise(r => pill.addEventListener('click', r, { once: true }))]);
-        if (my !== token || !root.isConnected) return;
-        await finish(pill.animate([{ opacity: 1 }, { opacity: 0 }], { duration: ctx.dur(OUT), easing: 'linear', fill: 'forwards' }));
-        pill.remove();
-      };
-      return { run };
-    },
-    code: {
-      css: `.pill {
-  position: absolute; bottom: 20px; left: 0; right: 0; margin-inline: auto; width: fit-content;
-  animation: pill-in .3s cubic-bezier(.34, 1.56, .64, 1) both;
-}
-@keyframes pill-in {
-  from { transform: translateY(12px) scale(.9); opacity: 0; }
-  to   { transform: translateY(0) scale(1); opacity: 1; }
-}
-/* 押されたら（またはデモの時間がたったら）フェードして消す */
-.pill.is-dismissed { opacity: 0; transition: opacity .2s linear; }`,
-      waapi: `await pill.animate(
-  [{ transform: 'translateY(12px) scale(.9)', opacity: 0 },
-   { transform: 'translateY(0) scale(1)', opacity: 1 }],
-  { duration: 300, easing: 'cubic-bezier(.34, 1.56, .64, 1)', fill: 'backwards' }
-).finished;
-
-// 押されるまで残す（デモは2秒で自動）
-await Promise.race([
-  new Promise(r => setTimeout(r, 2000)),
-  new Promise(r => pill.addEventListener('click', r, { once: true })),
-]);
-
-await pill.animate(
-  [{ opacity: 1 }, { opacity: 0 }],
-  { duration: 200, easing: 'linear', fill: 'forwards' }
-).finished;
-pill.remove();`,
-      reduced: `@media (prefers-reduced-motion: reduce) {
-  /* 位置と大きさは変えず、不透明度だけで出す */
-  .pill { animation: pill-fade-in .2s linear both; }
-}
-@keyframes pill-fade-in {
-  from { opacity: 0; }
-  to   { opacity: 1; }
-}`
     }
   },
   {
