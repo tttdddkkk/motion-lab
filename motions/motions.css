@@ -43,3 +43,17 @@
 .flow-bar { display: flex; gap: 8px; align-items: center; padding: 10px 12px 14px; background: #0f131b; }
 .flow-play { width: 32px; height: 32px; border: 0; border-radius: 50%; background: rgba(255,255,255,.12); color: var(--text); font-size: 12px; }
 .flow-range { flex: 1; accent-color: var(--accent); }
+
+/* チャット吹き出し: 映像の下に枠を置く（映像と重ねない）。新しい吹き出しは最下部に入る */
+.chat { position: absolute; inset: 0; display: grid; grid-template-rows: 1fr auto; }
+.chat-media { background: linear-gradient(160deg, #3b5bdb, #7a4dd8); }
+.chat-frame {
+  position: relative; height: 220px; overflow: hidden; box-sizing: border-box;
+  display: flex; flex-direction: column; justify-content: flex-end; gap: 8px; padding: 12px;
+  background: #151a24; border-top: 1px solid rgba(255,255,255,.08);
+}
+.chat-bubble {
+  flex: none; align-self: flex-start; max-width: 85%; box-sizing: border-box; padding: 8px 12px;
+  border-radius: 16px 16px 16px 4px; background: #2f3a52; color: var(--text);
+  font-size: 14px; line-height: 20px; overflow-wrap: anywhere; transform-origin: 0 100%;
+}

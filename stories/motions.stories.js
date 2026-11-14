@@ -134,6 +134,28 @@ function story(id) {
         });
       }
 
+      if (motion.id === 'chat-pop') {
+        await step('チャット: 吹き出しが左にそろい、新しいものが最下部に積み上がる', async () => {
+          motion.setup(stage, { dur: ms => ms / 4, reduced: () => false }).run().catch(() => {});
+          await new Promise(r => setTimeout(r, 900));
+          const area = stage.querySelector('.chat-frame').getBoundingClientRect();
+          const bubbles = [...stage.querySelectorAll('.chat-bubble')];
+          await expect(bubbles.length).toBeGreaterThanOrEqual(3);
+          const rects = bubbles.map(el => el.getBoundingClientRect());
+          // 枠の外（右・下）にはみ出さず、左端がそろっている
+          for (const r of rects) {
+            await expect(r.right).toBeLessThanOrEqual(area.right + 1);
+            await expect(r.bottom).toBeLessThanOrEqual(area.bottom + 1);
+          }
+          await expect(new Set(bubbles.map(el => el.offsetLeft)).size).toBe(1);
+          // 後に出たものほど下にある（吹き出し同士は重ならない）
+          for (let i = 1; i < bubbles.length; i++) {
+            await expect(bubbles[i].offsetTop).toBeGreaterThanOrEqual(bubbles[i - 1].offsetTop + bubbles[i - 1].offsetHeight);
+          }
+          stage.getAnimations({ subtree: true }).forEach(a => a.cancel());
+        });
+      }
+
       const button = stage.querySelector('button.demo-btn');
       if (button) {
         await step('ボタンをクリックするとアニメーションが始まる', async () => {
@@ -155,3 +177,4 @@ export const Ripple = story('ripple');
 export const CircleReveal = story('circle-reveal');
 export const FlowSeek = story('flow-seek');
 export const FlowSeekVertical = story('flow-seek-vertical');
+export const ChatPop = story('chat-pop');

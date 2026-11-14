@@ -451,5 +451,127 @@ range.addEventListener('change', () => {
   10%, 90% { opacity: 1; }
 }`
     }
+  },
+  {
+    id: 'chat-pop',
+    cat: 'comment',
+    name: 'チャット吹き出し（ポコっと）',
+    feel: '軽快・弾む',
+    use: 'チャット・メッセージUIの新着表示',
+    ms: 450,
+    easing: 'cubic-bezier(.34, 1.56, .64, 1)',
+    desc: '映像の下の枠で、吹き出しが下からポコっと現れ、先に出た吹き出しを上へ押し上げる。古いものは枠の上へ出ていく。時間は1つの吹き出しが現れる長さで、全体は約5.9秒。',
+    setup(stage, ctx) {
+      // 映像と重ねない・固定テキスト・投稿やサーバーは作らない・特定サービスの見た目に寄せない（docs/adr/0008, 0013）
+      const POP = 450;        // 吹き出しが現れる時間
+      const PUSH = 300;       // 先に出た吹き出しが押し上げられる時間
+      const INTERVAL = 900;   // 次の吹き出しが出るまでの間隔
+      const HOLD = 900;       // 最後の吹き出しを見せておく時間
+      const EASE_POP = 'cubic-bezier(.34, 1.56, .64, 1)';   // 行き過ぎて戻る
+      const EASE_PUSH = 'cubic-bezier(.2, 0, 0, 1)';
+      const MESSAGES = [
+        'こんにちは',
+        'おはよう！今日は早いね',
+        '昨日のライブ、すごくよかった',
+        'わかる！もう一回見たい',
+        '音がいい',
+        'おつかれさま',
+      ];
+
+      stage.innerHTML = `
+        <div class="chat">
+          <div class="chat-media"></div>
+          <div class="chat-frame" aria-live="polite"></div>
+        </div>`;
+      const frame = stage.querySelector('.chat-frame');
+      const wait = ms => new Promise(r => setTimeout(r, ctx.dur(ms)));
+      let token = 0;
+
+      // 吹き出しを1つ足す。押し上げは「足す前後の位置の差」から作る（FLIP）
+      const add = text => {
+        const before = [...frame.children].map(el => el.offsetTop);
+        const bubble = document.createElement('div');
+        bubble.className = 'chat-bubble';
+        bubble.textContent = text;
+        frame.append(bubble);
+        if (ctx.reduced()) {
+          // 動きを減らす: 位置は即座に切り替え、新しい吹き出しは不透明度だけで出す
+          bubble.animate([{ opacity: 0 }, { opacity: 1 }], { duration: ctx.dur(200), easing: 'linear' });
+        } else {
+          [...frame.children].slice(0, -1).forEach((el, i) => {
+            const d = before[i] - el.offsetTop;
+            if (d) el.animate([{ transform: `translateY(${d}px)` }, { transform: 'translateY(0)' }],
+                              { duration: ctx.dur(PUSH), easing: EASE_PUSH });
+          });
+          bubble.animate(
+            [{ transform: 'translateY(16px) scale(.85)', opacity: 0 },
+             { transform: 'translateY(0) scale(1)', opacity: 1 }],
+            { duration: ctx.dur(POP), easing: EASE_POP }
+          );
+        }
+        // 枠の上に出きった吹き出しは外す（下寄せなので、残りの位置は変わらない）
+        [...frame.children].forEach(el => { if (el.offsetTop + el.offsetHeight < 0) el.remove(); });
+      };
+
+      const run = async () => {
+        const my = ++token;
+        frame.replaceChildren();
+        for (let i = 0; i < MESSAGES.length; i++) {
+          if (my !== token || !frame.isConnected) return;
+          add(MESSAGES[i]);
+          await wait(i < MESSAGES.length - 1 ? INTERVAL : POP + HOLD);
+        }
+        if (my === token && frame.isConnected) frame.replaceChildren();
+      };
+      return { run };
+    },
+    code: {
+      css: `.chat {
+  display: flex; flex-direction: column;
+  justify-content: flex-end;   /* 下に寄せる。新しい吹き出しが最下部に入る */
+  gap: 8px; overflow: hidden;
+}
+.bubble {
+  align-self: flex-start; max-width: 85%; overflow-wrap: anywhere;
+  transform-origin: 0 100%;
+  animation: pop .45s cubic-bezier(.34, 1.56, .64, 1) both;
+}
+@keyframes pop {
+  from { transform: translateY(16px) scale(.85); opacity: 0; }
+  to   { transform: translateY(0) scale(1); opacity: 1; }
+}
+/* 先に出た吹き出しの押し上げは、位置の差から作る（WAAPI のタブを参照） */`,
+      waapi: `function add(text) {
+  // 足す前の位置を覚えておく
+  const before = [...chat.children].map(el => el.offsetTop);
+  const bubble = Object.assign(document.createElement('div'),
+                               { className: 'bubble', textContent: text });
+  chat.append(bubble);
+
+  // 先に出た吹き出し: 位置の差ぶん下に戻してから、0 へ
+  [...chat.children].slice(0, -1).forEach((el, i) => {
+    const d = before[i] - el.offsetTop;
+    if (d) el.animate(
+      [{ transform: \`translateY(\${d}px)\` }, { transform: 'translateY(0)' }],
+      { duration: 300, easing: 'cubic-bezier(.2, 0, 0, 1)' }
+    );
+  });
+
+  // 新しい吹き出し: 下からポコっと（行き過ぎて戻るイージング）
+  bubble.animate(
+    [{ transform: 'translateY(16px) scale(.85)', opacity: 0 },
+     { transform: 'translateY(0) scale(1)', opacity: 1 }],
+    { duration: 450, easing: 'cubic-bezier(.34, 1.56, .64, 1)' }
+  );
+}`,
+      reduced: `@media (prefers-reduced-motion: reduce) {
+  /* 位置は即座に切り替え、新しい吹き出しは不透明度だけで出す */
+  .bubble { animation: bubble-fade .2s linear both; }
+}
+@keyframes bubble-fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}`
+    }
   }
 ];
