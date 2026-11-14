@@ -1,3 +1,4 @@
 node_modules/
 storybook-static/
 .claude/worktrees/
+dist/
