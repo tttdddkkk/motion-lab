@@ -235,6 +235,13 @@ document.addEventListener('keydown', e => {
   if (e.key === 'ArrowLeft' && list[i - 1]) select(list[i - 1].id);
 });
 
+/* ページを開いたまま # だけが変わった場合（再読み込みされない）にも追従する */
+window.addEventListener('hashchange', () => {
+  let id = '';
+  try { id = decodeURIComponent(location.hash.slice(1)); } catch { return; }
+  if (id !== state.id && MOTIONS.some(m => m.id === id)) select(id);
+});
+
 renderFilters(); renderSpeed(); renderTabs();
 select(state.id);
 </script>
