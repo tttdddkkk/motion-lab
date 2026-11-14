@@ -22,6 +22,10 @@ test('基準以外のバリアントには「基準から何が違うか」の�
   for (const { v } of variants) if (!v.base) expect(v.diff.length, v.id).toBeGreaterThan(0);
 });
 
+test('すべてのバリアントに使いどころの一言がある', () => {
+  for (const { v } of variants) expect(v.use?.length, v.id).toBeGreaterThan(0);
+});
+
 test('A と B に「微差」の組が1つずつある', () => {
   for (const sec of ['A', 'B']) {
     const n = variants.filter(({ g, v }) => g.section === sec && v.subtle).length;

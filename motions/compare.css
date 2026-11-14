@@ -71,6 +71,7 @@
 .cmp-tag { font-size: 11px; color: var(--sub); border: 1px solid var(--line); border-radius: 999px; padding: 0 8px; }
 .cmp-tags { display: flex; flex-wrap: wrap; gap: 4px; }
 .cmp-diff { margin: 0; font-size: 13px; }
+.cmp-use { margin: 0; font-size: 12px; color: var(--sub); }
 .cmp-params { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; margin: 0; font-size: 12px; }
 .cmp-params dt { color: var(--sub); }
 .cmp-params dd { margin: 0; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
