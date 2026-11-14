@@ -58,6 +58,7 @@ export function mountCompare({ root, nav }) {
       <h4>${esc(v.name)}</h4>
       <div class="cmp-tags">${v.tags.map(t => `<span class="cmp-tag">${esc(t)}</span>`).join('')}</div>
       <p class="cmp-diff">${v.base ? '基準' : esc(v.diff)}${v.subtle ? `（${esc(v.subtle)}）` : ''}</p>
+      <p class="cmp-use">使いどころ: ${esc(v.use)}</p>
       <dl class="cmp-params" data-params></dl>
       <p class="cmp-note" data-note hidden></p>
       <div class="cmp-actions">
