@@ -18,9 +18,10 @@
 
 - `motions/motions.js` … モーション定義（`MOTIONS` 配列）。ビューアと Storybook の両方がここを読む
 - `motions/motions.css` … 共有トークンとデモ用スタイル
-- `index.html` … スマホ向けビューア
+- `index.html` … スマホ向けビューア。「差分比較」への切り替え（`#compare`）を含む
+- `motions/compare.js` … 差分比較のデータ（バリアント定義とトラック生成）。`MOTIONS` とは別で、ストーリーは不要。`motions/compare-ui.js` が描画する（ADR 0012）
 - `stories/motions.stories.js` … 1モーション1行のストーリーと振る舞いテスト（`play`）
-- `tests/` … `MOTIONS` とストーリーの対応漏れを検出するテスト
+- `tests/` … `MOTIONS` とストーリーの対応漏れ、差分比較データの整合を検出するテスト
 
 ## 使い方
 
