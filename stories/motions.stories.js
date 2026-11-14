@@ -119,3 +119,4 @@ export const PressBounce = story('press-bounce');
 export const Ripple = story('ripple');
 export const CircleReveal = story('circle-reveal');
 export const FlowSeek = story('flow-seek');
+export const FlowSeekVertical = story('flow-seek-vertical');

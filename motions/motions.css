@@ -32,6 +32,12 @@
 .flow-frame { position: relative; height: 100px; overflow: hidden; background: #151a24; border-top: 1px solid rgba(255,255,255,.08); }
 .flow-item { position: absolute; left: 0; white-space: nowrap; font-size: 14px; line-height: 20px; color: var(--text); will-change: transform; }
 .flow-item.is-static { left: 8px; }
+/* 縦版: 映像の横に枠を置く（映像と重ねない）。文字は下から上へ流す */
+.flow.is-vertical { grid-template-columns: 1fr 150px; grid-template-rows: 1fr auto; }
+.flow.is-vertical .flow-bar { grid-column: 1 / -1; }
+.flow.is-vertical .flow-frame { height: auto; border-top: 0; border-left: 1px solid rgba(255,255,255,.08); }
+.flow.is-vertical .flow-item { top: 0; left: var(--x); }
+.flow.is-vertical .flow-item.is-static { top: calc(8px + var(--lane) * 28px); left: 8px; }
 .flow-bar { display: flex; gap: 8px; align-items: center; padding: 10px 12px 14px; background: #0f131b; }
 .flow-play { width: 32px; height: 32px; border: 0; border-radius: 50%; background: rgba(255,255,255,.12); color: var(--text); font-size: 12px; }
 .flow-range { flex: 1; accent-color: var(--accent); }
