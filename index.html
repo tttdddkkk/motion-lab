@@ -7,6 +7,7 @@
 <link rel="icon" href="data:,">
 <title>Motion Lab</title>
 <link rel="stylesheet" href="motions/motions.css">
+<link rel="stylesheet" href="motions/compare.css">
 <style>
   * { box-sizing: border-box; }
   html, body { margin: 0; background: var(--bg); color: var(--text); }
@@ -78,11 +79,13 @@
 <div class="app">
   <aside>
     <p class="brand">MOTION LAB<small>自分用モーションライブラリ</small></p>
+    <div class="seg" id="mode" role="group" aria-label="表示の切り替え" style="margin-bottom:12px"></div>
     <div class="filters" id="filters"></div>
     <ul class="list" id="list"></ul>
+    <ul class="list" id="cmp-nav" hidden></ul>
   </aside>
 
-  <main>
+  <main id="viewer">
     <header>
       <h1 id="title"></h1>
       <p class="desc" id="desc"></p>
@@ -110,6 +113,8 @@
       <pre><code id="code"></code></pre>
     </section>
   </main>
+
+  <main id="compare" hidden></main>
 </div>
 
 <script type="module">
@@ -127,6 +132,7 @@ const TABS = [['css', 'CSS'], ['waapi', 'WAAPI'], ['reduced', '動きを減ら�
 const hashId = (() => { try { return decodeURIComponent(location.hash.slice(1)); } catch { return ''; } })();
 const initialId = MOTIONS.some(m => m.id === hashId) ? hashId : MOTIONS[0].id;
 
+let mode = location.hash === '#compare' ? 'compare' : 'viewer';
 const state = { cat: 'all', id: initialId, rate: 1, tab: 'css', runId: 0, instance: null };
 
 const ctx = {
@@ -205,7 +211,7 @@ function renderInfo() {
 
 function select(id) {
   state.id = id;
-  history.replaceState(null, '', '#' + encodeURIComponent(id));
+  if (mode === 'viewer') history.replaceState(null, '', '#' + encodeURIComponent(id));
   state.runId++;
   state.instance = current().setup($('stage'), ctx);
   renderList(); renderInfo(); renderCode();
@@ -234,22 +240,66 @@ $('copy').onclick = async () => {
   setTimeout(() => $('copy').textContent = 'コピー', 1200);
 };
 document.addEventListener('keydown', e => {
-  if (e.target.matches('input, textarea')) return;
+  if (mode !== 'viewer' || e.target.matches('input, textarea')) return;
   const list = visible(); const i = list.findIndex(m => m.id === state.id);
   if (e.code === 'Space') { e.preventDefault(); play(); }
   if (e.key === 'ArrowRight' && list[i + 1]) select(list[i + 1].id);
   if (e.key === 'ArrowLeft' && list[i - 1]) select(list[i - 1].id);
 });
 
+/* 表示の切り替え（モーション / 差分比較） */
+const MODES = [['viewer', 'モーション'], ['compare', '差分比較']];
+let compareLoaded = false;
+
+function renderMode() {
+  $('mode').innerHTML = '';
+  MODES.forEach(([key, label]) => {
+    const b = document.createElement('button');
+    b.textContent = label;
+    b.setAttribute('aria-pressed', mode === key);
+    b.onclick = () => setMode(key);
+    $('mode').appendChild(b);
+  });
+}
+
+async function setMode(next) {
+  state.runId++; /* モーションのループ再生を止める */
+  mode = next;
+  $('viewer').hidden = mode !== 'viewer';
+  $('compare').hidden = mode !== 'compare';
+  $('filters').hidden = $('list').hidden = mode !== 'viewer';
+  $('cmp-nav').hidden = mode !== 'compare';
+  renderMode();
+  if (mode === 'compare') {
+    history.replaceState(null, '', '#compare');
+    if (!compareLoaded) {
+      compareLoaded = true;
+      try {
+        const { mountCompare } = await import('./motions/compare-ui.js');
+        mountCompare({ root: $('compare'), nav: $('cmp-nav') });
+      } catch (e) {
+        compareLoaded = false;
+        $('compare').textContent = '差分比較を読み込めませんでした。';
+      }
+    }
+  } else {
+    history.replaceState(null, '', '#' + encodeURIComponent(state.id));
+  }
+}
+
 /* ページを開いたまま # だけが変わった場合（再読み込みされない）にも追従する */
 window.addEventListener('hashchange', () => {
+  if (location.hash === '#compare') { if (mode !== 'compare') setMode('compare'); return; }
   let id = '';
   try { id = decodeURIComponent(location.hash.slice(1)); } catch { return; }
-  if (id !== state.id && MOTIONS.some(m => m.id === id)) select(id);
+  if (!MOTIONS.some(m => m.id === id)) return;
+  if (mode !== 'viewer') setMode('viewer');
+  if (id !== state.id) select(id);
 });
 
-renderFilters(); renderSpeed(); renderTabs();
+renderFilters(); renderSpeed(); renderTabs(); renderMode();
 select(state.id);
+if (mode === 'compare') setMode('compare');
 </script>
 </body>
 </html>
