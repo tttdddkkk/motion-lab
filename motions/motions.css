@@ -62,15 +62,17 @@
 .shelf { position: absolute; inset: 0; overflow: hidden; padding: 0 16px; display: flex; flex-direction: column; justify-content: center; gap: 24px; background: #17140f; }
 .shelf-row { display: flex; align-items: flex-end; gap: 6px; }
 .shelf-board { height: 10px; margin: 0 -16px; background: linear-gradient(180deg, #6b4a2a, #4a3119); }
-.spine {
+.spine, .spine-art {
   flex: none; width: 38px; height: var(--h); padding: 20px 0 0; border: 0; border-radius: 3px 3px 0 0;
   writing-mode: vertical-rl; text-align: start; font-size: 13px; font-weight: 700; letter-spacing: .08em; color: #fff; position: relative;
   background: linear-gradient(90deg, rgba(0,0,0,.3), transparent 22%, transparent 78%, rgba(0,0,0,.25)), var(--c);
   -webkit-tap-highlight-color: transparent;
 }
-.spine::before, .spine::after { content: ''; position: absolute; left: 0; right: 0; height: 2px; background: rgba(240,200,120,.55); }
-.spine::before { top: 9px; }
-.spine::after { bottom: 9px; }
+.spine::before, .spine::after, .spine-art::before, .spine-art::after { content: ''; position: absolute; left: 0; right: 0; height: 2px; background: rgba(240,200,120,.55); }
+.spine::before, .spine-art::before { top: 9px; }
+.spine::after, .spine-art::after { bottom: 9px; }
+/* オーバーレイの背表紙の面: 棚の背表紙と同じ見た目を、--k 倍に拡大して置く（戻ったとき、棚の背表紙にぴったり重なる） */
+.spine-art { display: block; box-sizing: border-box; position: absolute; top: 0; left: 0; transform: scale(var(--k)); transform-origin: 0 0; }
 .spine:hover { filter: brightness(1.18); }
 .spine:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .spine.is-out { opacity: 0; }
@@ -83,7 +85,10 @@
   background: rgba(255,255,255,.16); color: #fff; font-size: 18px; line-height: 1;
 }
 .overlay-close:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.book3d { position: relative; z-index: 1; width: 176px; height: 272px; perspective: 900px; }
+.book3d { position: relative; z-index: 1; width: 176px; height: 272px; perspective: 900px; transform-origin: 0 50%; }
+.book-front { position: absolute; inset: 0; perspective: 900px; transform-origin: 0 50%; }
+/* 背表紙の面: 表紙の左辺の外側に置く。開いた状態では真横を向いて見えない。幅は背表紙の幅(38px)を --k 倍したもの */
+.book-spine-face { position: absolute; top: 0; right: 100%; width: calc(38px * var(--k)); height: 100%; transform-origin: 100% 50%; transform: rotateY(-90deg); }
 .book-inside {
   position: absolute; inset: 0; overflow: hidden; border-radius: 3px 8px 8px 3px; background: #f3ecdc; color: #2b2a26;
   box-shadow: 4px 6px 0 -2px #e0d6bd, 0 14px 30px rgba(0,0,0,.5);
@@ -103,5 +108,6 @@
 .cover-title { font-size: 20px; font-weight: 700; letter-spacing: .06em; }
 .cover-author { font-size: 12px; color: rgba(255,255,255,.8); }
 .shelf-overlay.is-open .book-cover { transform: rotateY(-100deg); }
-/* 動きを減らす: 表紙は回さず、不透明度だけで消す */
+/* 動きを減らす: 表紙は回さず、不透明度だけで消す。背表紙の面は使わない */
+.shelf.is-reduced .book-spine-face { display: none; }
 .shelf.is-reduced .shelf-overlay.is-open .book-cover { transform: none; opacity: 0; }
