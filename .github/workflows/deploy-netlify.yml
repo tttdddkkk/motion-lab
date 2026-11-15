@@ -1,0 +1,91 @@
+name: Deploy to Netlify
+
+# Netlify のビルド・デプロイはクレジット制のため、自動デプロイは使わず手動実行だけで本番デプロイする（ADR 0015）。
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "本番デプロイすることを確認した（チェックしないと実行されません）"
+        type: boolean
+        required: true
+        default: false
+      message:
+        description: "デプロイのメモ（Netlify のデプロイ履歴に残ります・任意）"
+        type: string
+        required: false
+        default: ""
+
+# 同時に2つ本番デプロイが走らないよう直列にする。実行中のデプロイは取り消さない
+concurrency:
+  group: deploy-netlify
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      # 変更するときは、新しい版が公開から7日以上経っていることを確認する（ADR 0004 と同じ方針）
+      NETLIFY_CLI_VERSION: "27.16.2"
+    steps:
+      - name: 確認チェックと実行ブランチを検証
+        env:
+          CONFIRM: ${{ inputs.confirm }}
+          REF: ${{ github.ref }}
+        run: |
+          if [ "$CONFIRM" != "true" ]; then
+            echo "::error::「本番デプロイすることを確認した」にチェックが入っていないため中止しました。"
+            exit 1
+          fi
+          if [ "$REF" != "refs/heads/main" ]; then
+            echo "::error::本番デプロイは main ブランチからのみ実行できます（実行ブランチ: $REF）。"
+            exit 1
+          fi
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # netlify-cli の実行に Node.js が必要。版は CI と同じ .node-version に揃える
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+
+      # ビルドは不要な静的サイト。配信するファイルを dist/ に集める。
+      # netlify.toml の [build] command と同じ内容。片方を変えたらもう片方も合わせる。
+      - name: 配信ファイルを dist/ に集める
+        run: rm -rf dist && mkdir dist && cp -r index.html robots.txt motions dist/
+
+      - name: Netlify に本番デプロイ
+        id: deploy
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+          DEPLOY_MESSAGE: ${{ inputs.message }}
+        run: |
+          set -euo pipefail
+          if [ -z "$NETLIFY_AUTH_TOKEN" ] || [ -z "$NETLIFY_SITE_ID" ]; then
+            echo "::error::Secrets（NETLIFY_AUTH_TOKEN / NETLIFY_SITE_ID）が未登録です。"
+            exit 1
+          fi
+          # NETLIFY_AUTH_TOKEN は CLI が環境変数から読む。--site / --auth も環境変数の値を参照するだけで、値は書かない
+          npx --yes "netlify-cli@${NETLIFY_CLI_VERSION}" deploy --prod --dir=dist \
+            --site="$NETLIFY_SITE_ID" --auth="$NETLIFY_AUTH_TOKEN" \
+            --message="${DEPLOY_MESSAGE:-manual deploy (run ${GITHUB_RUN_ID})}" \
+            --json > deploy-result.json
+          jq -r '"url=" + .url' deploy-result.json >> "$GITHUB_OUTPUT"
+          jq -r '"logs=" + (.logs // "")' deploy-result.json >> "$GITHUB_OUTPUT"
+
+      - name: デプロイ結果をサマリに出す
+        env:
+          URL: ${{ steps.deploy.outputs.url }}
+          LOGS: ${{ steps.deploy.outputs.logs }}
+        run: |
+          {
+            echo "## Netlify 本番デプロイ"
+            echo
+            echo "- 本番URL: $URL"
+            if [ -n "$LOGS" ]; then echo "- [デプロイログ]($LOGS)"; fi
+            echo "- コミット: \`${GITHUB_SHA}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
