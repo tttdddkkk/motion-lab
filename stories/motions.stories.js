@@ -254,3 +254,4 @@ export const Toast = story('toast');
 export const BannerDrop = story('banner-drop');
 export const BadgePop = story('badge-pop');
 export const ShelfOpen = story('shelf-open');
+export const CardDraw = story('card-draw');

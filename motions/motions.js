@@ -1194,5 +1194,266 @@ async function closeIt(spine, bookHeight) {
   .spine-face { display: none; }
 }`
     }
+  },
+  {
+    id: 'card-draw',
+    cat: 'expand',
+    name: 'カード（引くと回って現れる）',
+    feel: '神秘的・ゆったり',
+    use: '伏せたカードから1枚を選んで結果を見せる（占い・ガチャ・ご褒美・カード型の一覧）',
+    ms: 2100,
+    easing: 'cubic-bezier(.2, 0, 0, 1) / cubic-bezier(.3, .1, .2, 1)',
+    desc: '裏向きのカードが並ぶ中から1枚を選ぶと、そのカードが右へ8pxほど滑りながらフェードアウトして消える。そのあと、オーバーレイの中央へ、同じカードが上から降りながら縦軸でゆっくり2回転して現れる（降りる1000ms・回転1800ms）。閉じるボタン・背景・Esc で、カードが少し上へ消え、元の位置に伏せたカードが戻る。デモ全体は約4.5秒。',
+    setup(stage, ctx) {
+      const LIFT = 'cubic-bezier(.2, 0, 0, 1)';       // 滑って消える・降りる・フェード
+      const SPIN = 'cubic-bezier(.3, .1, .2, 1)';     // 回転: 勢いよく回り、ゆっくり止まる
+      const SLIDE = 8;                                // 消えるときに右へ滑る距離（px）
+      const ICONS = {
+        star: '<polygon points="24,5 29.5,18.5 44,19.5 33,29 36.5,43 24,35.5 11.5,43 15,29 4,19.5 18.5,18.5"/>',
+        moon: '<path d="M34 8A18 18 0 1 0 40 32 14 14 0 0 1 34 8z"/>',
+        sun: '<circle cx="24" cy="24" r="8"/><path d="M24 4v6M24 38v6M4 24h6M38 24h6M10 10l4 4M34 34l4 4M38 10l-4 4M10 38l4-4"/>',
+        flower: '<circle cx="24" cy="13" r="7"/><circle cx="24" cy="35" r="7"/><circle cx="13" cy="24" r="7"/><circle cx="35" cy="24" r="7"/><circle cx="24" cy="24" r="3"/>',
+        drop: '<path d="M24 6C24 6 12 20 12 29a12 12 0 0 0 24 0C36 20 24 6 24 6z"/>',
+        wave: '<path d="M5 14q6-7 12 0t12 0 12 0M5 24q6-7 12 0t12 0 12 0M5 34q6-7 12 0t12 0 12 0"/>',
+      };
+      const CARDS = [
+        { no: 'I', name: '星', icon: 'star', color: '#b8860b', note: '遠くの光を目印に、\n歩幅を決める日。' },
+        { no: 'II', name: '月', icon: 'moon', color: '#4b5aa8', note: '満ち欠けのように、\n焦らず待つ日。' },
+        { no: 'III', name: '陽', icon: 'sun', color: '#c2571a', note: 'はじめの一歩は、\n朝のうちに。' },
+        { no: 'IV', name: '花', icon: 'flower', color: '#a23a6b', note: '小さな手入れが、\nあとで大きく咲く。' },
+        { no: 'V', name: '雫', icon: 'drop', color: '#1f6f8b', note: 'ひとつ落ちると、\n水面が静かに広がる。' },
+        { no: 'VI', name: '波', icon: 'wave', color: '#2f7a5a', note: '寄せては返す。\n戻るのも進むうち。' },
+      ];
+
+      stage.innerHTML = `
+        <div class="deck">
+          <div class="deck-grid">${CARDS.map((_, i) => `
+            <button class="tcard card-back-art" type="button" data-i="${i}" aria-haspopup="dialog" aria-label="伏せたカード ${i + 1} を引く"></button>`).join('')}
+          </div>
+          <div class="deck-overlay" role="dialog" aria-modal="true" aria-label="引いたカード">
+            <div class="overlay-bg"></div>
+            <button class="overlay-close" type="button" aria-label="閉じる">×</button>
+            <div class="card3d">
+              <div class="card-body">
+                <div class="card-face card-front"></div>
+                <div class="card-face card-back card-back-art" aria-hidden="true"></div>
+              </div>
+            </div>
+          </div>
+        </div>`;
+      const deck = stage.querySelector('.deck');
+      const grid = stage.querySelector('.deck-grid');
+      const cards = [...stage.querySelectorAll('.tcard')];
+      const overlay = stage.querySelector('.deck-overlay');
+      const bg = stage.querySelector('.overlay-bg');
+      const closeBtn = stage.querySelector('.overlay-close');
+      const drop = stage.querySelector('.card3d');     // 上から降りる（移動と不透明度）
+      const body = stage.querySelector('.card-body');  // 縦軸で回る
+      const front = stage.querySelector('.card-front');
+      const wait = ms => new Promise(r => setTimeout(r, ctx.dur(ms)));
+      let current = -1;     // 開いている（または開こうとしている）カード
+      let busy = false;     // 開閉のアニメーション中。その間の操作は受け付けない
+      let token = 0;
+
+      const fill = i => {
+        const k = CARDS[i];
+        front.style.setProperty('--c', k.color);
+        front.innerHTML = `
+          <span class="card-no">${k.no}</span>
+          <svg class="card-icon" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[k.icon]}</svg>
+          <span class="card-name">${k.name}</span>
+          <span class="card-note">${k.note}</span>`;
+      };
+      const a = (el, frames, duration, delay, easing) =>
+        el.animate(frames, { duration: ctx.dur(duration), delay: ctx.dur(delay), easing, fill: 'both' });
+      const finish = async anims => {
+        try { await Promise.all(anims.map(x => x.finished)); } catch { return false; }   // reset で中断された
+        anims.forEach(x => x.cancel());
+        return true;
+      };
+
+      const openCard = async (i, { focus = false } = {}) => {
+        if (busy || current >= 0) return;
+        busy = true; current = i;
+        const reduced = ctx.reduced();
+        fill(i);
+        grid.inert = true;
+        // 1. 選んだ伏せカードが、少し右へ滑りながらフェードアウトする（動きを減らす: 不透明度だけ）
+        cards[i].classList.add('is-out');   // 消えたあとも非表示のままにする。最終状態は class に持たせる
+        const out = reduced
+          ? a(cards[i], [{ opacity: 1 }, { opacity: 0 }], 200, 0, 'linear')
+          : a(cards[i], [{ opacity: 1, transform: 'translateX(0)' }, { opacity: 0, transform: `translateX(${SLIDE}px)` }], 300, 0, LIFT);
+        if (!(await finish([out]))) return;
+        // 2. 消えたあとに、オーバーレイの中央へ出す
+        overlay.classList.add('is-open');
+        if (focus) closeBtn.focus({ preventScroll: true });
+        const anims = reduced
+          ? [a(overlay, [{ opacity: 0 }, { opacity: 1 }], 250, 0, 'linear')]
+          : [
+              a(bg, [{ opacity: 0 }, { opacity: 1 }], 250, 0, LIFT),
+              a(closeBtn, [{ opacity: 0 }, { opacity: 1 }], 250, 0, LIFT),
+              // 上から降りる。見え始めは早く、位置はゆっくり落ち着く
+              a(drop, [{ transform: 'translateY(-180px)', opacity: 0 }, { opacity: 1, offset: .3 }, { transform: 'none', opacity: 1 }], 1000, 0, LIFT),
+              // 縦軸で2回転（720°）。降りきったあともしばらく回り、ゆっくり止まる
+              a(body, [{ transform: 'rotateY(0deg)' }, { transform: 'rotateY(720deg)' }], 1800, 0, SPIN),
+            ];
+        if (!(await finish(anims))) return;
+        busy = false;
+      };
+
+      const closeCard = async ({ focus = false } = {}) => {
+        if (busy || current < 0) return;
+        busy = true;
+        const i = current;
+        const reduced = ctx.reduced();
+        const anims = reduced
+          ? [a(overlay, [{ opacity: 1 }, { opacity: 0 }], 250, 0, 'linear')]
+          : [
+              a(drop, [{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(-24px)' }], 300, 0, LIFT),
+              a(closeBtn, [{ opacity: 1 }, { opacity: 0 }], 200, 0, LIFT),
+              a(bg, [{ opacity: 1 }, { opacity: 0 }], 300, 100, LIFT),
+            ];
+        if (!(await finish(anims))) return;
+        overlay.classList.remove('is-open');   // 終わってから外し、アニメーションは cancel 済み
+        // 元の位置に伏せたカードが戻る（右から少し滑りながらフェードイン）
+        cards[i].classList.remove('is-out');
+        grid.inert = false;
+        current = -1;
+        const back = reduced
+          ? a(cards[i], [{ opacity: 0 }, { opacity: 1 }], 200, 0, 'linear')
+          : a(cards[i], [{ opacity: 0, transform: `translateX(${SLIDE}px)` }, { opacity: 1, transform: 'none' }], 300, 0, LIFT);
+        if (!(await finish([back]))) return;
+        busy = false;
+        if (focus) cards[i].focus({ preventScroll: true });
+      };
+
+      const reset = () => {
+        stage.getAnimations({ subtree: true }).forEach(x => x.cancel());
+        overlay.classList.remove('is-open');
+        cards.forEach(c => c.classList.remove('is-out'));
+        grid.inert = false;
+        current = -1; busy = false;
+      };
+
+      // 手で操作したら、デモの自動再生は止める
+      cards.forEach((c, i) => c.addEventListener('click', () => { token++; openCard(i, { focus: true }); }));
+      const userClose = () => { token++; closeCard({ focus: true }); };
+      closeBtn.addEventListener('click', userClose);
+      bg.addEventListener('click', userClose);
+      overlay.addEventListener('keydown', e => {
+        if (e.key === 'Escape') { e.stopPropagation(); userClose(); }
+        if (e.key === 'Tab') { e.preventDefault(); closeBtn.focus({ preventScroll: true }); }   // 操作できるのは閉じるボタンだけ
+      });
+
+      const run = async () => {
+        const my = ++token;
+        reset();
+        const alive = () => my === token && deck.isConnected;
+        await wait(300);
+        if (!alive()) return;
+        await openCard(2);
+        if (!alive()) return;
+        await wait(1200);                // 表を見せる
+        if (!alive()) return;
+        await closeCard();
+        if (alive()) await wait(300);
+      };
+      return { run };
+    },
+    code: {
+      css: `/* 伏せたカード: 5:8 の縦長。裏面は柄だけで、中身は見せない */
+.card-back { aspect-ratio: 5 / 8; border-radius: 8px; background: #2a2250; }
+
+/* 1. 選んだカードが、右へ少し滑りながらフェードアウト。消えたあとも消したままにする */
+.card-back.is-picked {
+  animation: card-out .3s cubic-bezier(.2, 0, 0, 1) both;
+}
+@keyframes card-out {
+  from { opacity: 1; transform: translateX(0); }
+  to   { opacity: 0; transform: translateX(8px); }
+}
+
+/* 2. 消えたあと(.3s)に、オーバーレイの中央へ。遠近は外側の箱、回転は内側の箱 */
+.overlay { display: none; place-items: center; position: absolute; inset: 0; }
+.overlay.is-open { display: grid; }
+.card3d { width: 148px; height: 236px; perspective: 900px; }
+.card-body { position: relative; height: 100%; transform-style: preserve-3d; }
+.face { position: absolute; inset: 0; backface-visibility: hidden; }   /* 回って背中を向けたとき、表の面を隠す */
+.face.back { transform: rotateY(180deg); }
+
+/* 上から降りる(1s)。同時に縦軸で2回転(1.8s)し、ゆっくり止まる */
+.overlay.is-open .card3d {
+  animation: drop 1s cubic-bezier(.2, 0, 0, 1) both;
+}
+.overlay.is-open .card-body {
+  animation: spin 1.8s cubic-bezier(.3, .1, .2, 1) both;
+}
+@keyframes drop {
+  from { transform: translateY(-180px); opacity: 0; }
+  30%  { opacity: 1; }
+  to   { transform: none; opacity: 1; }
+}
+@keyframes spin {
+  from { transform: rotateY(0deg); }
+  to   { transform: rotateY(720deg); }   /* 720° = 2回転。止まったときは表の面 */
+}
+/* 閉じるときは、カードが少し上へ消え、元の位置に伏せたカードが戻る。WAAPI のタブを参照 */`,
+      waapi: `const LIFT = 'cubic-bezier(.2, 0, 0, 1)', SPIN = 'cubic-bezier(.3, .1, .2, 1)';
+const anim = (el, frames, duration, delay, easing) =>
+  el.animate(frames, { duration, delay, easing, fill: 'both' });
+
+async function draw(picked) {
+  // 1. 選んだ伏せカードが、右へ少し滑りながらフェードアウト
+  picked.classList.add('is-out');   // 消えたあとも非表示のまま（opacity: 0）
+  const out = anim(picked,
+    [{ opacity: 1, transform: 'translateX(0)' }, { opacity: 0, transform: 'translateX(8px)' }],
+    300, 0, LIFT);
+  await out.finished;
+  out.cancel();
+
+  // 2. 消えたあとに、オーバーレイの中央へ。上から降りながら、縦軸で2回転
+  overlay.classList.add('is-open');
+  const anims = [
+    anim(bg,    [{ opacity: 0 }, { opacity: 1 }], 250, 0, LIFT),
+    anim(close, [{ opacity: 0 }, { opacity: 1 }], 250, 0, LIFT),
+    // card3d: 外側の箱（perspective をもつ）。降りる動き
+    anim(card3d,
+      [{ transform: 'translateY(-180px)', opacity: 0 },
+       { opacity: 1, offset: .3 },
+       { transform: 'none', opacity: 1 }],
+      1000, 0, LIFT),
+    // body: 内側の箱（preserve-3d）。720° = 2回転、降りきったあともゆっくり回る
+    anim(body, [{ transform: 'rotateY(0deg)' }, { transform: 'rotateY(720deg)' }], 1800, 0, SPIN),
+  ];
+  await Promise.all(anims.map(a => a.finished));
+  anims.forEach(a => a.cancel());
+}
+
+async function dismiss(picked) {
+  const anims = [
+    anim(card3d, [{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(-24px)' }], 300, 0, LIFT),
+    anim(close,  [{ opacity: 1 }, { opacity: 0 }], 200, 0, LIFT),
+    anim(bg,     [{ opacity: 1 }, { opacity: 0 }], 300, 100, LIFT),
+  ];
+  await Promise.all(anims.map(a => a.finished));
+  overlay.classList.remove('is-open');   // 終わってから class を外し、そのあと cancel（ちらつき防止）
+  picked.classList.remove('is-out');
+  anims.forEach(a => a.cancel());
+  // 元の位置に伏せたカードが戻る
+  const back = anim(picked,
+    [{ opacity: 0, transform: 'translateX(8px)' }, { opacity: 1, transform: 'none' }], 300, 0, LIFT);
+  await back.finished;
+  back.cancel();
+}`,
+      reduced: `@media (prefers-reduced-motion: reduce) {
+  /* 滑る・降りる・回転はやめる。選んだカードは不透明度だけで消え、
+     表を向いたカードが、オーバーレイごとフェードで現れる（transform は使わない） */
+  .card-back.is-picked { animation: card-fade .2s linear both; }
+  .overlay.is-open { animation: card-fade-in .25s linear both; }
+  .overlay.is-open .card3d, .overlay.is-open .card-body { animation: none; }
+}
+@keyframes card-fade    { from { opacity: 1; } to { opacity: 0; } }
+@keyframes card-fade-in { from { opacity: 0; } to { opacity: 1; } }`
+    }
   }
 ];
