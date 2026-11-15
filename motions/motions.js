@@ -20,14 +20,17 @@ function flowSeek(stage, ctx, { vertical }) {
     { t: 900,  lane: 2, text: '音がいい' },
     { t: 1600, lane: 0, text: 'ここ好き' },
     // 縦版は枠が狭く折り返すため、2行になる長い文字を1件入れる。
-    // 行は固定で重なりを自動では避けないので、前後の文字との間隔（600ms以上）を空けてある
+    // 縦版の出現時刻は t ではなく、文字の高さから計算する（build 内の timesFor）
     { t: 2200, lane: 1, text: vertical ? 'このサビが何度聴いても好き' : 'なるほど' },
     { t: 2800, lane: 2, text: 'もう一回見たい' },
     { t: 3400, lane: 0, text: 'きれい' },
     { t: 4000, lane: 1, text: 'わかる' },
     { t: 4700, lane: 2, text: 'おつかれさま' },
   ];
-  const TOTAL = Math.max(...ITEMS.map(i => i.t)) + CROSS;
+  // 縦版: 1行の文字どうしの出現間隔。前の文字が1行より高ければ、そのぶん次を遅らせて、見た目の隙間をそろえる
+  const STEP = 600;
+  let times = ITEMS.map(i => i.t);   // 出現時刻。縦版は build で計算し直す
+  let TOTAL = Math.max(...times) + CROSS;
 
   stage.innerHTML = `
     <div class="flow${vertical ? ' is-vertical' : ''}">
@@ -82,7 +85,7 @@ function flowSeek(stage, ctx, { vertical }) {
       let cursor = PAD;   // 次に置く位置。下に空きがあるうちは下へ足していく
       let ok = true;
       const ys = heights.map((h, i) => {
-        const t = ITEMS[i].t;
+        const t = times[i];
         const active = placed.filter(o => o.end > t);   // 今も表示中の文字
         const fits = y => y + h <= H - PAD && active.every(o => y + h + gap <= o.y || o.y + o.h + gap <= y);
         // 下に空きがあればそこへ。足りなくなったら上に戻り、消えた文字の位置を再利用する
@@ -113,10 +116,22 @@ function flowSeek(stage, ctx, { vertical }) {
     const reduced = ctx.reduced();
     // 縦の静止表示: 表示時間が重なる文字どうしだけを避けて位置を決める。
     // 下に空きがあるうちは下へ足していき（全件が専用の位置）、足りなくなったら上に戻って再利用する
+    const heights = els.map(el => el.offsetHeight);
+    const maxH = Math.max(...heights);
+    if (vertical) {
+      // 全件が同じ速さ（枠の高さ + 最も高い文字ぶんを CROSS で進む）なので、
+      // 前の文字が1行より高いぶんの時間を足すと、文字どうしの見た目の隙間がそろう
+      const minH = Math.min(...heights);
+      const speed = (W + maxH) / CROSS;   // px/ms
+      times = heights.map(() => 0);
+      for (let i = 1; i < times.length; i++) times[i] = times[i - 1] + STEP + (heights[i - 1] - minH) / speed;
+      TOTAL = times[times.length - 1] + CROSS;
+    }
     const ys = vertical && reduced ? packSlots() : [];
-    const endPos = vertical ? `${-Math.max(...els.map(el => el.offsetHeight))}px` : END;
+    const endPos = vertical ? `${-maxH}px` : END;
     anims = els.map((el, i) => {
-      const { t, lane } = ITEMS[i];
+      const { lane } = ITEMS[i];
+      const t = times[i];
       el.classList.toggle('is-static', reduced);
       if (vertical) el.style.top = reduced ? `${ys[i]}px` : '';
       if (!reduced) {
@@ -127,8 +142,8 @@ function flowSeek(stage, ctx, { vertical }) {
       }
       // 静止表示。横: 同じ行の次の文字が出るまでを表示期間にして、重ならないようにする。
       // 縦: 位置は packSlots で決める（表示時間が重なる文字どうしを避ける）。表示期間は CROSS
-      const next = vertical ? null : ITEMS.find((o, j) => j > i && o.lane === lane);
-      const end = Math.min(t + CROSS, next ? next.t : Infinity);
+      const next = vertical ? -1 : ITEMS.findIndex((o, j) => j > i && o.lane === lane);
+      const end = Math.min(t + CROSS, next >= 0 ? times[next] : Infinity);
       return el.animate(
         [{ opacity: 0 }, { opacity: 1, offset: .1 }, { opacity: 1, offset: .9 }, { opacity: 0 }],
         { duration: ctx.dur(end - t), delay: ctx.dur(t), easing: 'linear', fill: 'both' }
@@ -438,7 +453,7 @@ range.addEventListener('change', () => {
     use: '縦長の枠での実況・字幕',
     ms: 4000,
     easing: 'linear',
-    desc: '映像の横の枠で文字が下から上へ流れる。シークバーで進めたり戻したりできる。「流れる文字+シーク」から方向だけを縦にしたもので、枠が狭いため長い文字は折り返す。時間は1つの文字が枠を横切る長さで、全体は約8.7秒。',
+    desc: '映像の横の枠で文字が下から上へ流れる。シークバーで進めたり戻したりできる。「流れる文字+シーク」から方向だけを縦にしたもので、枠が狭いため長い文字は折り返す。時間は1つの文字が枠を横切る長さで、全体は約9秒（枠の高さで少し変わる）。文字どうしの見た目の隙間がそろうよう、前の文字が2行のときは次の文字を少し遅らせて出す。',
     setup(stage, ctx) { return flowSeek(stage, ctx, { vertical: true }); },
     code: {
       css: `.frame { position: relative; overflow: hidden; container-type: size; }
@@ -447,7 +462,7 @@ range.addEventListener('change', () => {
   /* 枠が狭いので折り返す。左右に8pxの余白を残す */
   max-width: calc(100% - 16px); overflow-wrap: anywhere;
   animation: flow-up 4s linear both;
-  animation-delay: var(--t); /* 出現時刻（例: 1.6s） */
+  animation-delay: var(--t); /* 出現時刻。前の文字が2行なら、1行ぶん遅らせて隙間をそろえる（WAAPI のタブを参照） */
 }
 @keyframes flow-up {
   from { transform: translateY(100cqh); }
@@ -462,6 +477,12 @@ range.addEventListener('change', () => {
 const H = frame.clientHeight;
 // 終了位置は最も高い文字が出きる位置。全件を同じ距離・同じ時間で流して速さをそろえる
 const END = -Math.max(...items.map(({ el }) => el.offsetHeight));
+// 出現時刻: 1行どうしは 600ms 間隔。前の文字が1行より高いぶん（px ÷ 速さ）だけ次を遅らせ、見た目の隙間をそろえる
+const speed = (H - END) / CROSS;   // px/ms（全件同じ速さ）
+const LINE = Math.min(...items.map(({ el }) => el.offsetHeight));
+items.forEach((item, i) => {
+  item.t = i === 0 ? 0 : items[i - 1].t + 600 + (items[i - 1].el.offsetHeight - LINE) / speed;
+});
 const anims = items.map(({ el, t }) => el.animate(
   [{ transform: \`translateY(\${H}px)\` },
    { transform: \`translateY(\${END}px)\` }],

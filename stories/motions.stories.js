@@ -142,6 +142,18 @@ function story(id) {
             await expect(moving.length).toBeGreaterThan(1);
             for (const d of moving) await expect(Math.abs(d - moving[0])).toBeLessThan(0.5);
           }
+          // 間隔: 枠の中に並んでいる文字どうしの見た目の隙間がそろっている（2行の文字のあとも同じ）
+          let checkedTwoLine = false;
+          for (let v = 200; v <= 700; v += 50) {
+            seekTo(v);
+            const rows = items.map(el => el.getBoundingClientRect())
+              .filter(r => r.top >= area.top && r.bottom <= area.bottom)
+              .sort((p, q) => p.top - q.top);
+            const gaps = rows.slice(1).map((r, i) => r.top - rows[i].bottom);
+            if (rows.slice(0, -1).some(r => r.height > 30)) checkedTwoLine = true;
+            for (const g of gaps) await expect(Math.abs(g - gaps[0])).toBeLessThan(1);
+          }
+          await expect(checkedTwoLine).toBe(true);   // 2行の文字のあとの隙間も確かめた
           // 終了時: すべての文字が枠の上に出きっている
           seekTo(1000);
           for (const el of items) await expect(el.getBoundingClientRect().bottom).toBeLessThanOrEqual(area.top + 1);
