@@ -985,6 +985,8 @@ banner.remove();`,
         overlay.classList.add('is-open');     // 最終状態は class に持たせる
         spines[i].classList.add('is-out');    // 持ち上げた本の跡は空けておく
         levels.forEach(l => { l.inert = true; });
+        // 押した背表紙が inert になってフォーカスが失われないよう、先に閉じるボタンへ移す
+        if (focus) closeBtn.focus({ preventScroll: true });
         const items = [...page.querySelectorAll('.reveal')];
         let anims;
         if (reduced) {
@@ -1005,7 +1007,6 @@ banner.remove();`,
         const ok = await finish(anims);
         if (!ok) return;
         busy = false;
-        if (focus) closeBtn.focus({ preventScroll: true });
       };
 
       const closeBook = async ({ focus = false } = {}) => {
