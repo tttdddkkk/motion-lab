@@ -72,7 +72,7 @@
 .spine::before, .spine-art::before { top: 9px; }
 .spine::after, .spine-art::after { bottom: 9px; }
 /* オーバーレイの背表紙の面: 棚の背表紙と同じ見た目を、--k 倍に拡大して置く（戻ったとき、棚の背表紙にぴったり重なる） */
-.spine-art { display: block; box-sizing: border-box; position: absolute; top: 0; left: 0; transform: scale(var(--k)); transform-origin: 0 0; }
+.spine-art { display: flex; align-items: center; /* 縦書きの文字を中央に置く（棚のボタンと同じ。block だと右端に寄る） */ box-sizing: border-box; position: absolute; top: 0; left: 0; transform: scale(var(--k)); transform-origin: 0 0; }
 .spine:hover { filter: brightness(1.18); }
 .spine:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .spine.is-out { opacity: 0; }
