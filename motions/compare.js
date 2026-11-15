@@ -21,7 +21,8 @@ export const EASING_PRESETS = [
 export const SECTIONS = [
   { id: 'A', title: 'A. ボタン押下', lead: '基準を1つ固定し、1つの軸だけを変えて並べる。' },
   { id: 'B', title: 'B. 画面遷移', lead: '画面A→画面Bの切り替え。基準を固定し、1つの軸だけを変える。' },
-  { id: 'C', title: 'C. 口頭で混同しやすいペア', lead: '同じ言葉で指しがちな動きを並べる。どれを指しているか選んで認識を合わせる。' }
+  { id: 'C', title: 'C. 口頭で混同しやすいペア', lead: '同じ言葉で指しがちな動きを並べる。どれを指しているか選んで認識を合わせる。' },
+  { id: 'D', title: 'D. 通知', lead: 'トーストの入り方と出方。入る → 見せる → 同じ出し方で出る、を再生する。基準を固定し、1つの軸だけを変える。' }
 ];
 
 /* トラック = 1つの要素（target）に対する1回の animate() 呼び出し分 */
@@ -38,6 +39,15 @@ const IN = {
   slidefade: [{ opacity: 0, transform: 'translateX(24px)' }, { opacity: 1, transform: 'translateX(0)' }]
 };
 const ITEM_IN = [{ opacity: 0, transform: 'translateY(16px)' }, { opacity: 1, transform: 'translateY(0)' }];
+const TOAST_FADE = [{ opacity: 0 }, { opacity: 1 }];
+/* 入ってくる側の端の外から、置き場所（0）まで */
+const TOAST_SLIDE = {
+  bottom: [{ transform: 'translateY(calc(100% + 16px))' }, { transform: 'translateY(0)' }],
+  top: [{ transform: 'translateY(calc(-100% - 16px))' }, { transform: 'translateY(0)' }],
+  left: [{ transform: 'translateX(calc(-100% - 16px))' }, { transform: 'translateX(0)' }],
+  right: [{ transform: 'translateX(calc(100% + 16px))' }, { transform: 'translateX(0)' }]
+};
+const TOAST_EXIT_EASE = 'cubic-bezier(.4, 0, 1, 1)';
 const MOVE = [{ transform: 'translateX(-60px)' }, { transform: 'translateX(60px)' }];
 
 /* stage ごとのトラック生成。v: バリアント, p: 調整を反映した params */
@@ -175,6 +185,23 @@ const BUILDERS = {
     return [T('items', ITEM_IN, o, extra)];
   },
 
+  /* トースト: 入る → hold ms 見せる → 同じ出し方で出る。出る時間は out ms（イージングは固定） */
+  toast(v, p) {
+    if (v.mode === 'none') {
+      // アニメーションなし: 時間 0 で切り替える。調整値（時間・イージング）は効かない
+      return [
+        T('toast', TOAST_FADE, { duration: 0 }, { main: true }),
+        T('toast', [...TOAST_FADE].reverse(), { duration: 0, delay: p.hold, fill: 'forwards' })
+      ];
+    }
+    const k = v.mode === 'fade' ? TOAST_FADE : TOAST_SLIDE[p.from];
+    if (!k) throw new Error(`unknown toast: ${v.mode} / ${p.from}`);
+    return [
+      T('toast', k, { duration: p.duration, easing: p.easing }, { main: true }),
+      T('toast', [...k].reverse(), { duration: p.out, delay: p.duration + p.hold, easing: TOAST_EXIT_EASE, fill: 'forwards' })
+    ];
+  },
+
   origin(v, p) {
     const at = `${p.x}% ${p.y}%`;
     return [T('reveal',
@@ -189,6 +216,9 @@ const BASE = { base: true };
 const PRESS = { duration: 200, easing: 'ease-out', scale: .95, hold: 0 };
 const SCREEN = { duration: 300, easing: 'ease-out' };
 const BOX = { duration: 500, easing: 'ease-out', delay: 0 };
+/* モーション定義の toast と同じ値（入る 300ms・見せる 2.5s・出る 250ms）。変えるときは両方を合わせる */
+const TOAST = { duration: 300, easing: 'cubic-bezier(.2, 0, 0, 1)', hold: 2500, out: 250, from: 'bottom' };
+const { from: _from, ...TOAST_FADE_PARAMS } = TOAST;   // フェードは方向を持たない
 
 export const COMPARE_GROUPS = [
   /* ---------- A. ボタン押下 ---------- */
@@ -388,6 +418,27 @@ export const COMPARE_GROUPS = [
       V('C-STOP-2', '減速して止まる', ['自然', 'なめらか'], '終わりに向けてゆっくり止まる', '標準的な停止。移動やスクロールの終わり', 'move', { duration: 500, easing: 'ease-out', delay: 0 }),
       V('C-STOP-3', 'はみ出してから戻る', ['弾む', '物理的'], '目標位置を少し超えてから戻る', '弾む印象で、勢いのある配置の止まり方', 'stop-overshoot', { duration: 600, easing: 'linear', delay: 0 })
     ]
+  },
+
+  /* ---------- D. 通知 ---------- */
+  {
+    id: 'd-dir', section: 'D', title: '方向差', stage: 'toast',
+    axis: 'スライドで入ってくる方向だけを変える（下からが基準）。トーストは入ってくる側の端に置く',
+    variants: [
+      V('D-DIR-1', '下から', ['標準', '控えめ'], '基準', '標準。画面下の操作（保存・送信）の結果を知らせる', 'slide', TOAST, BASE),
+      V('D-DIR-2', '上から', ['目立つ', '知らせる'], '基準と違い、上端から降りてくる', '画面下にボタンやタブが多く、下だと隠れてしまう画面', 'slide', { ...TOAST, from: 'top' }),
+      V('D-DIR-3', '左から', ['横の流れ', '軽い'], '基準と違い、左端から入ってくる', '左から右へ進む流れ（ステップ・横スクロール）の中の通知', 'slide', { ...TOAST, from: 'left' }),
+      V('D-DIR-4', '右から', ['横の流れ', '軽い'], '基準と違い、右端から入ってくる', '横幅の広い画面で、右下に積む通知', 'slide', { ...TOAST, from: 'right' })
+    ]
+  },
+  {
+    id: 'd-type', section: 'D', title: '種類差', stage: 'toast',
+    axis: '出し方だけを変える（下からのスライドが基準）。置き場所は下中央でそろえている',
+    variants: [
+      V('D-TYPE-1', 'スライド', ['標準', '方向が分かる'], '基準', '標準。どこから来たかを見せたい通知', 'slide', TOAST, BASE),
+      V('D-TYPE-2', 'フェード', ['やわらかい', '控えめ'], '基準と違い、位置は動かず透明度だけが変わる', '動きを目立たせたくない、落ち着いた画面', 'fade', TOAST_FADE_PARAMS),
+      V('D-TYPE-3', 'なし', ['即時', '機械的'], '基準と違い、時間 0 で一瞬で出て一瞬で消える', '頻繁に出る通知や、動きを入れない方針の画面', 'none', { duration: 0, hold: 2500 })
+    ]
   }
 ];
 
@@ -401,8 +452,9 @@ export function buildTracks(group, variant, override = {}) {
   return { params, tracks: build(variant, params) };
 }
 
-const MS_KEYS = new Set(['duration', 'delay', 'hold', 'gap', 'back', 'stagger']);
-const LABELS = { x: '中心 x', y: '中心 y', backEasing: '戻りの easing' };
+const MS_KEYS = new Set(['duration', 'delay', 'hold', 'gap', 'back', 'stagger', 'out']);
+const LABELS = { x: '中心 x', y: '中心 y', backEasing: '戻りの easing', hold: 'hold（見せる時間）', out: '出る時間', from: '方向' };
+const FROM_LABELS = { bottom: '下から', top: '上から', left: '左から', right: '右から' };
 
 /* 表示用: [[ラベル, 値], ...]。params から作るので、動きとずれない */
 export function formatParams(params) {
@@ -411,6 +463,7 @@ export function formatParams(params) {
     Array.isArray(v) ? v.join(' / ') + ' ms'
       : MS_KEYS.has(k) ? `${v}ms`
       : (k === 'x' || k === 'y') ? `${v}%`
+      : k === 'from' ? FROM_LABELS[v] || String(v)
       : String(v)
   ]);
 }

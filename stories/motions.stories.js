@@ -250,3 +250,6 @@ export const CircleReveal = story('circle-reveal');
 export const FlowSeek = story('flow-seek');
 export const FlowSeekVertical = story('flow-seek-vertical');
 export const ChatPop = story('chat-pop');
+export const Toast = story('toast');
+export const BannerDrop = story('banner-drop');
+export const BadgePop = story('badge-pop');
