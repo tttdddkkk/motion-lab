@@ -74,22 +74,25 @@ function story(id) {
         await step('再生前でも、文字が時刻0の位置に配置されている', async () => {
           motion.setup(stage, { dur: ms => ms / 4, reduced: () => false });
           await frame();
-          const transforms = [...stage.querySelectorAll('.flow-item')].map(el => getComputedStyle(el).transform);
+          // 時刻で位置が決まる要素（流れる文字、または data-seek-probe="transform" を付けた要素）。
+          // 見え方（opacity）だけが変わるもの（字幕）は位置を持たないので、ここでは調べない
+          const transforms = [...stage.querySelectorAll('.flow-item, [data-seek-probe="transform"]')].map(el => getComputedStyle(el).transform);
           await expect(transforms).not.toContain('none');
           stage.getAnimations({ subtree: true }).forEach(a => a.cancel());
         });
 
-        await step('シークバーを動かすと、表示位置が時刻に合わせて変わる', async () => {
+        await step('シークバーを動かすと、表示が時刻に合わせて変わる', async () => {
           motion.setup(stage, { dur: ms => ms / 4, reduced: () => false }).run().catch(() => {});
           await frame();
           // setup で中身が作り直されるため、要素は取り直す
           const range = stage.querySelector('input[type="range"]');
-          const item = stage.querySelector('.flow-item');
+          const item = stage.querySelector('.flow-item, [data-seek-probe]');
           const at = value => {
             range.dispatchEvent(new PointerEvent('pointerdown'));
             range.value = String(value);
             range.dispatchEvent(new Event('input'));
-            return getComputedStyle(item).transform;
+            const cs = getComputedStyle(item);
+            return `${cs.transform} / ${cs.opacity}`;   // 位置か見え方のどちらかが時刻で変わる
           };
           const early = at(50);
           const later = at(250);
@@ -228,6 +231,23 @@ function story(id) {
         }
       }
 
+      if (motion.id === 'ticker') {
+        await step('ティッカー・動きを減らす: 流す用の文字列は隠れ、1件ずつの文字だけが見える', async () => {
+          motion.setup(stage, { dur: ms => ms / 4, reduced: () => true }).run().catch(() => {});
+          await frame();
+          await expect(getComputedStyle(stage.querySelector('.tx-track')).display).toBe('none');
+          await expect(getComputedStyle(stage.querySelector('.tx-static')).display).not.toBe('none');
+          stage.getAnimations({ subtree: true }).forEach(a => a.cancel());
+        });
+        await step('ティッカー・通常: 1件ずつの文字は隠れ、流す用の文字列が見える', async () => {
+          motion.setup(stage, { dur: ms => ms / 4, reduced: () => false }).run().catch(() => {});
+          await frame();
+          await expect(getComputedStyle(stage.querySelector('.tx-track')).display).not.toBe('none');
+          await expect(getComputedStyle(stage.querySelector('.tx-static')).display).toBe('none');
+          stage.getAnimations({ subtree: true }).forEach(a => a.cancel());
+        });
+      }
+
       const button = stage.querySelector('button.demo-btn');
       if (button) {
         await step('ボタンをクリックするとアニメーションが始まる', async () => {
@@ -255,3 +275,6 @@ export const BannerDrop = story('banner-drop');
 export const BadgePop = story('badge-pop');
 export const ShelfOpen = story('shelf-open');
 export const CardDraw = story('card-draw');
+export const Typewriter = story('typewriter');
+export const Ticker = story('ticker');
+export const SyncHighlight = story('sync-highlight');

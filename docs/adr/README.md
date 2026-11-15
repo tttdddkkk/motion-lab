@@ -23,3 +23,4 @@
 | [0014](0014-notification-category.md) | 「通知」カテゴリを作り、チャットはコメントに含める | 採用 |
 | [0015](0015-manual-netlify-deploy.md) | Netlify の本番デプロイを、GitHub Actions の手動実行だけにする | 採用 |
 | [0016](0016-check-browser-support-for-modern-css.md) | モダン CSS は、対応ブラウザを調べてから使う | 採用 |
+| [0017](0017-text-category.md) | 「テキスト」カテゴリを作り、1つの文章の見せ方を集める | 採用 |
