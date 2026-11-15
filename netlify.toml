@@ -2,3 +2,8 @@
 [build]
   command = "rm -rf dist && mkdir dist && cp -r index.html robots.txt motions dist/"
   publish = "dist"
+
+# 本番（main への push）のビルドはスキップする。本番デプロイは GitHub Actions の手動実行だけで行う（ADR 0015）。
+# Deploy Preview（PR ごと）は context が別なので、これまでどおり動く。
+[context.production]
+  ignore = "exit 0"
