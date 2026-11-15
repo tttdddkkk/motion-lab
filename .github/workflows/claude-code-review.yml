@@ -48,7 +48,7 @@ jobs:
             PR ブランチは現在の作業ディレクトリにチェックアウト済みです。
 
             レビュー方針・評価レベル(🔴 CRITICAL / 🟡 WARNING / 🔵 INFO)・
-            マージ判定・指摘しない対象は、CLAUDE.md の「レビュー方針」に従ってください。
+            マージ判定・指摘しない対象は、docs/review-policy.md を最初に Read して、その内容に従ってください。
 
             指摘は mcp__github_inline_comment__create_inline_comment で該当行に
             インラインコメントとして投稿してください。各コメントの本文は先頭に
