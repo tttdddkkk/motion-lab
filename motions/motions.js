@@ -6,12 +6,13 @@
    ctx.reduced()  「動きを減らす」がONか
    ============================================================ */
 /* 流れる文字+シークの共通実装。vertical で横（右→左）と縦（下→上）を切り替える。
-   映像と重ねない・行は固定・投稿や重なり回避は作らない（docs/adr/0008, 0013） */
+   映像と重ねない・行は固定・投稿や重なり回避は作らない（docs/adr/0008, 0013）。
+   再生・シークの操作は withSeek に任せ、ここでは文字の配置と動きだけを作る */
 function flowSeek(stage, ctx, { vertical }) {
   const CROSS = vertical ? 4000 : 3000;   // 1つの文字が枠を横切る時間
-  // 文字が枠の端に出きる位置。横は最長の文字が左に出きる位置(px)。
-  // 縦は折り返しで高さが変わるため、再生のたびに最も高い文字の高さから決める（build 内）。
-  // 全件を同じ距離・同じ時間で流し、速さをそろえる（文字ごとの高さにすると、高い文字だけ速くなる）
+  // 全件を同じ距離・同じ時間で流して、速さをそろえる（文字ごとに距離を変えると、高い文字だけ速くなる）。
+  // 終了位置は、最も長い（高い）文字が枠の外に出きる位置。
+  //   横: 固定値。縦: 折り返しで高さが変わるため、再生のたびに最も高い文字の高さから決める（makeAnims 内）
   const END = vertical ? null : '-140px';
   const axis = vertical ? 'Y' : 'X';
   const ITEMS = [
@@ -19,17 +20,17 @@ function flowSeek(stage, ctx, { vertical }) {
     { t: 400,  lane: 1, text: 'こんばんは' },
     { t: 900,  lane: 2, text: '音がいい' },
     { t: 1600, lane: 0, text: 'ここ好き' },
-    // 縦版は枠が狭く折り返すため、2行になる長い文字を1件入れる。
-    // 縦版の出現時刻は t ではなく、文字の高さから計算する（build 内の timesFor）
+    // 縦版は枠が狭く折り返すため、2行になる長い文字を1件入れる
     { t: 2200, lane: 1, text: vertical ? 'このサビが何度聴いても好き' : 'なるほど' },
     { t: 2800, lane: 2, text: 'もう一回見たい' },
     { t: 3400, lane: 0, text: 'きれい' },
     { t: 4000, lane: 1, text: 'わかる' },
     { t: 4700, lane: 2, text: 'おつかれさま' },
   ];
-  // 縦版: 1行の文字どうしの出現間隔。前の文字が1行より高ければ、そのぶん次を遅らせて、見た目の隙間をそろえる
+  // 縦版: 1行の文字どうしの出現間隔。前の文字が1行より高ければ、そのぶん次を遅らせて、見た目の隙間をそろえる。
+  // 縦版の出現時刻は ITEMS の t ではなく、文字の高さから makeAnims で計算し直す
   const STEP = 600;
-  let times = ITEMS.map(i => i.t);   // 出現時刻。縦版は build で計算し直す
+  let times = ITEMS.map(i => i.t);   // 出現時刻。縦版は makeAnims で上書きする
   let TOTAL = Math.max(...times) + CROSS;
 
   stage.innerHTML = `
@@ -37,45 +38,13 @@ function flowSeek(stage, ctx, { vertical }) {
       <div class="flow-media"></div>
       <div class="flow-frame">${ITEMS.map(i =>
         `<span class="flow-item"${vertical ? '' : ` style="top:${8 + i.lane * 28}px"`}>${i.text}</span>`).join('')}</div>
-      <div class="flow-bar">
-        <button class="flow-play" type="button" aria-label="一時停止">❚❚</button>
-        <input class="flow-range" type="range" min="0" max="1000" value="0" aria-label="再生位置">
-      </div>
+      ${SEEK_BAR}
     </div>`;
+  const root = stage.querySelector('.flow');
   const frame = stage.querySelector('.flow-frame');
   const els = [...stage.querySelectorAll('.flow-item')];
-  const playBtn = stage.querySelector('.flow-play');
-  const range = stage.querySelector('.flow-range');
 
-  let anims = [];
-  let clock = null;
-  let dragging = false;
-  let wasPlaying = false;
-  let ticking = false;
-
-  const isPlaying = () => clock?.playState === 'running';
-  const setLabel = () => {
-    playBtn.textContent = isPlaying() ? '❚❚' : '▶';
-    playBtn.setAttribute('aria-label', isPlaying() ? '一時停止' : '再生');
-  };
-  const seek = fraction => {
-    const time = fraction * ctx.dur(TOTAL);
-    anims.forEach(a => { a.currentTime = time; });
-  };
-  // シークバーの表示更新は再生中だけ回し、二重に起動しない
-  const tick = () => {
-    if (!clock || clock.playState === 'idle') { ticking = false; return; }
-    if (!dragging) range.value = Math.round(clock.currentTime / ctx.dur(TOTAL) * 1000);
-    setLabel();
-    ticking = clock.playState === 'running';
-    if (ticking) requestAnimationFrame(tick);
-  };
-  const startTick = () => {
-    if (ticking) return;
-    ticking = true;
-    requestAnimationFrame(tick);
-  };
-
+  // 縦・動きを減らす: 各文字の top を決める。表示時間が重なる文字どうしだけを避ける
   const packSlots = () => {
     const PAD = 8, H = frame.clientHeight;
     const heights = els.map(el => el.offsetHeight);
@@ -92,9 +61,9 @@ function flowSeek(stage, ctx, { vertical }) {
         const candidates = [PAD, cursor, ...active.map(o => o.y + o.h + gap)].sort((a, b) => a - b);
         let y = candidates.find(c => c >= cursor && fits(c)) ?? candidates.find(fits);
         if (y === undefined) {
-          // 足りないときだけ、最も早く消える文字の位置に重ねる
+          // 足りないときだけ、最も早く消える文字の位置に重ねる（表示中の文字がなければ上端に置く）
           ok = false;
-          y = active.reduce((a, o) => (o.end < a.end ? o : a)).y;
+          y = active.length ? active.reduce((a, o) => (o.end < a.end ? o : a)).y : PAD;
         }
         placed.push({ y, h, end: t + CROSS });
         cursor = y + h + gap;
@@ -110,12 +79,10 @@ function flowSeek(stage, ctx, { vertical }) {
     return pack(0).ys;
   };
 
-  const build = () => {
-    anims.forEach(a => a.cancel());
+  // 文字ごとのアニメーションを作る（withSeek が時計と一緒に管理する）
+  const makeAnims = () => {
     const W = vertical ? frame.clientHeight : frame.clientWidth;
     const reduced = ctx.reduced();
-    // 縦の静止表示: 表示時間が重なる文字どうしだけを避けて位置を決める。
-    // 下に空きがあるうちは下へ足していき（全件が専用の位置）、足りなくなったら上に戻って再利用する
     const heights = els.map(el => el.offsetHeight);
     const maxH = Math.max(...heights);
     if (vertical) {
@@ -129,7 +96,7 @@ function flowSeek(stage, ctx, { vertical }) {
     }
     const ys = vertical && reduced ? packSlots() : [];
     const endPos = vertical ? `${-maxH}px` : END;
-    anims = els.map((el, i) => {
+    return els.map((el, i) => {
       const { lane } = ITEMS[i];
       const t = times[i];
       el.classList.toggle('is-static', reduced);
@@ -141,7 +108,7 @@ function flowSeek(stage, ctx, { vertical }) {
         );
       }
       // 静止表示。横: 同じ行の次の文字が出るまでを表示期間にして、重ならないようにする。
-      // 縦: 位置は packSlots で決める（表示時間が重なる文字どうしを避ける）。表示期間は CROSS
+      // 縦: 位置は packSlots で決める。表示期間は CROSS
       const next = vertical ? -1 : ITEMS.findIndex((o, j) => j > i && o.lane === lane);
       const end = Math.min(t + CROSS, next >= 0 ? times[next] : Infinity);
       return el.animate(
@@ -149,49 +116,9 @@ function flowSeek(stage, ctx, { vertical }) {
         { duration: ctx.dur(end - t), delay: ctx.dur(t), easing: 'linear', fill: 'both' }
       );
     });
-    clock = frame.animate([], { duration: ctx.dur(TOTAL) });
-    anims.push(clock);
-    startTick();
   };
 
-  playBtn.addEventListener('click', () => {
-    if (!clock) return;
-    if (isPlaying()) anims.forEach(a => a.pause());
-    else {
-      if (clock.playState === 'finished') seek(0);
-      anims.forEach(a => a.play());
-      startTick();
-    }
-    setLabel();
-  });
-  range.addEventListener('pointerdown', () => {
-    dragging = true;
-    wasPlaying = isPlaying();
-    anims.forEach(a => a.pause());
-  });
-  range.addEventListener('input', () => seek(range.value / 1000));
-  range.addEventListener('change', () => {
-    if (dragging && wasPlaying) {
-      anims.forEach(a => a.play());
-      startTick();
-    }
-    dragging = false;
-    setLabel();
-  });
-
-  const run = () => {
-    build();
-    return clock.finished.then(() => setLabel());
-  };
-  // 再生前でも時刻0の配置で表示し、シークできるようにする。
-  // 位置の計算に枠の幅が要るため、DOM に入った後（次のフレーム）で作る
-  requestAnimationFrame(() => {
-    if (clock || !frame.isConnected) return;
-    build();
-    anims.forEach(a => a.pause());
-    setLabel();
-  });
-  return { run };
+  return withSeek(root, ctx, () => TOTAL, makeAnims);
 }
 
 /* シークバー付きの再生（テキストの字幕・同期ハイライトで共通）。
@@ -403,8 +330,8 @@ export const MOTIONS = [
   .ripple { animation: ripple-fade .25s linear; }
 }
 @keyframes ripple-fade {
-  from { transform: scale(1); opacity: .3; }
-  to   { transform: scale(1); opacity: 0; }
+  from { opacity: .3; }
+  to   { opacity: 0; }
 }`
     }
   },

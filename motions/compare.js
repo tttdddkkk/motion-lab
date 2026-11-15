@@ -2,8 +2,8 @@
    差分比較（認識合わせ用）のデータ
    - 1バリアント = 1オブジェクト。バリアントの追加はデータの追加だけで済む
    - 表示するパラメータ値・実際の動き・コピーする JSON は、すべて同じ params から作る
-   - MOTIONS（モーション定義）とは別物。ストーリーや「動きを減らす」版の対象ではない
-     （差分比較ビューは、動きを減らす設定のときは再生を止める）
+   - MOTIONS（モーション定義）とは別物。ストーリーや「動きを減らす」版は持たない
+     （代わりに、差分比較ビューは「動きを減らす」設定が有効なとき再生しない。compare-ui.js）
    DOM に依存しない。tests/compare.test.js でデータの整合を検査する。
    ============================================================ */
 
@@ -25,7 +25,8 @@ export const SECTIONS = [
   { id: 'D', title: 'D. 通知', lead: 'トーストの入り方と出方。入る → 見せる → 同じ出し方で出る、を再生する。基準を固定し、1つの軸だけを変える。' }
 ];
 
-/* トラック = 1つの要素（target）に対する1回の animate() 呼び出し分 */
+/* トラック = 1つの要素（target）に対する1回の animate() 呼び出し分。
+   main: true は「調整 UI の duration / easing が効くトラック」（tests/compare.test.js が参照する） */
 const T = (target, keyframes, options = {}, extra = {}) => ({
   target, keyframes, options: { fill: 'both', ...options }, ...extra
 });
@@ -94,6 +95,9 @@ const BUILDERS = {
           T('incoming', IN.slide, main, { main: true })
         ];
       case 'together': case 'sequential': {
+        // gap: 前の画面が消えてから次の画面が入るまでの待ち。
+        // 0（together）: 前の画面は d かけて消え、次の画面と同時に入れ替わる。
+        // >0（sequential）: 前の画面は gap かけて消え、消え終わってから次の画面が入る
         const gap = p.gap || 0;
         return [
           T('outgoing', FADE_OUT, { duration: gap || d, easing: e }),
