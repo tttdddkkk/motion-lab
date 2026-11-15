@@ -10,8 +10,9 @@
 function flowSeek(stage, ctx, { vertical }) {
   const CROSS = vertical ? 4000 : 3000;   // 1つの文字が枠を横切る時間
   // 文字が枠の端に出きる位置。横は最長の文字が左に出きる位置(px)。
-  // 縦は折り返しで高さが変わるため、文字自身の高さ(-100%)にする
-  const END = vertical ? '-100%' : '-140px';
+  // 縦は折り返しで高さが変わるため、再生のたびに最も高い文字の高さから決める（build 内）。
+  // 全件を同じ距離・同じ時間で流し、速さをそろえる（文字ごとの高さにすると、高い文字だけ速くなる）
+  const END = vertical ? null : '-140px';
   const axis = vertical ? 'Y' : 'X';
   const ITEMS = [
     { t: 0,    lane: 0, text: 'はじまった' },
@@ -113,13 +114,14 @@ function flowSeek(stage, ctx, { vertical }) {
     // 縦の静止表示: 表示時間が重なる文字どうしだけを避けて位置を決める。
     // 下に空きがあるうちは下へ足していき（全件が専用の位置）、足りなくなったら上に戻って再利用する
     const ys = vertical && reduced ? packSlots() : [];
+    const endPos = vertical ? `${-Math.max(...els.map(el => el.offsetHeight))}px` : END;
     anims = els.map((el, i) => {
       const { t, lane } = ITEMS[i];
       el.classList.toggle('is-static', reduced);
       if (vertical) el.style.top = reduced ? `${ys[i]}px` : '';
       if (!reduced) {
         return el.animate(
-          [{ transform: `translate${axis}(${W}px)` }, { transform: `translate${axis}(${END})` }],
+          [{ transform: `translate${axis}(${W}px)` }, { transform: `translate${axis}(${endPos})` }],
           { duration: ctx.dur(CROSS), delay: ctx.dur(t), easing: 'linear', fill: 'both' }
         );
       }
@@ -449,7 +451,7 @@ range.addEventListener('change', () => {
 }
 @keyframes flow-up {
   from { transform: translateY(100cqh); }
-  to   { transform: translateY(-100%); } /* 折り返しても、文字自身の高さぶん上に出きる */
+  to   { transform: translateY(-40px); } /* 最も高い文字（2行・40px）が出きる位置。全件を同じ距離・同じ速さで流す */
 }
 /* シーク: 一時停止して、遅延を「出現時刻 − シーク位置」にずらす */
 .frame.is-seeking .item {
@@ -458,9 +460,11 @@ range.addEventListener('change', () => {
 }`,
       waapi: `const CROSS = 4000;
 const H = frame.clientHeight;
+// 終了位置は最も高い文字が出きる位置。全件を同じ距離・同じ時間で流して速さをそろえる
+const END = -Math.max(...items.map(({ el }) => el.offsetHeight));
 const anims = items.map(({ el, t }) => el.animate(
   [{ transform: \`translateY(\${H}px)\` },
-   { transform: 'translateY(-100%)' }],   // 折り返しても、文字自身の高さぶん上に出きる
+   { transform: \`translateY(\${END}px)\` }],
   { duration: CROSS, delay: t, easing: 'linear', fill: 'both' }
 ));
 

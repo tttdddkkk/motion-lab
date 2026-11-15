@@ -126,6 +126,22 @@ function story(id) {
               await expect(overlap).toBe(false);
             }
           }
+          // 速さ: 流れている途中の文字は、すべて同じ距離だけ動く（折り返した文字も同じ速さ）
+          const ty = el => new DOMMatrixReadOnly(getComputedStyle(el).transform).m42;
+          seekTo(0);
+          const start = Math.max(...items.map(ty));   // 枠の下（出る前の位置）
+          seekTo(1000);
+          const end = Math.min(...items.map(ty));     // 枠の上（出きった位置）
+          const between = y => y < start - 0.5 && y > end + 0.5;
+          for (const [from, to] of [[300, 330], [500, 530]]) {
+            seekTo(from);
+            const a = items.map(ty);
+            seekTo(to);
+            const b = items.map(ty);
+            const moving = items.map((el, i) => b[i] - a[i]).filter((d, i) => between(a[i]) && between(b[i]));
+            await expect(moving.length).toBeGreaterThan(1);
+            for (const d of moving) await expect(Math.abs(d - moving[0])).toBeLessThan(0.5);
+          }
           // 終了時: すべての文字が枠の上に出きっている
           seekTo(1000);
           for (const el of items) await expect(el.getBoundingClientRect().bottom).toBeLessThanOrEqual(area.top + 1);
