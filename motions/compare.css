@@ -84,3 +84,15 @@
 .cmp-tune-body label { display: grid; gap: 2px; color: var(--sub); font-size: 12px; }
 .cmp-tune-body select, .cmp-tune-body input[type="range"] { width: 100%; }
 .cmp-tune-body select { background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 4px; }
+
+/* D. 通知: トーストは入ってくる側の端に置く（下・上は中央、左・右は下寄り） */
+.cmp-toast {
+  position: absolute; display: flex; align-items: center; gap: 5px; width: max-content;
+  padding: 6px 10px; border-radius: 999px; background: #2f3a52; color: var(--text);
+  font-size: 10px; line-height: 14px; box-shadow: 0 4px 10px rgba(0,0,0,.35);
+}
+.cmp-toast i { width: 6px; height: 6px; border-radius: 50%; background: #4cc38a; }
+.cmp-toast[data-from="bottom"] { bottom: 14px; left: 0; right: 0; margin-inline: auto; }
+.cmp-toast[data-from="top"] { top: 14px; left: 0; right: 0; margin-inline: auto; }
+.cmp-toast[data-from="left"] { bottom: 14px; left: 10px; }
+.cmp-toast[data-from="right"] { bottom: 14px; right: 10px; }

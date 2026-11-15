@@ -58,6 +58,29 @@
   font-size: 14px; line-height: 20px; overflow-wrap: anywhere; transform-origin: 0 100%;
 }
 
+/* 通知: アプリ画面の上に通知が出る。映像は使わない */
+.ntf { position: absolute; inset: 0; overflow: hidden; background: #151a24; padding: 72px 16px 16px; display: grid; align-content: start; gap: 12px; box-sizing: border-box; }
+.ntf-row { height: 54px; border-radius: 12px; background: rgba(255,255,255,.08); }
+.ntf-toast {
+  position: absolute; bottom: 20px; left: 0; right: 0; margin-inline: auto; width: fit-content; max-width: calc(100% - 32px); box-sizing: border-box;
+  display: flex; align-items: center; gap: 8px; padding: 10px 16px; border: 0; border-radius: 999px;
+  background: #2f3a52; color: var(--text); font: inherit; font-size: 14px; line-height: 20px; box-shadow: 0 6px 18px rgba(0,0,0,.35);
+}
+.ntf-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: #4cc38a; }
+.ntf-banner {
+  position: absolute; top: 10px; left: 10px; right: 10px; box-sizing: border-box;
+  display: grid; gap: 2px; padding: 10px 14px; border-radius: 14px;
+  background: #2f3a52; color: var(--text); font-size: 13px; line-height: 18px; box-shadow: 0 6px 18px rgba(0,0,0,.35);
+}
+.ntf-banner strong { font-size: 14px; }
+.ntf-banner span { opacity: .8; }
+.ntf-head { position: absolute; top: 14px; left: 16px; right: 16px; display: flex; align-items: center; justify-content: space-between; color: var(--text); font-size: 16px; }
+.ntf-bell { position: relative; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; background: rgba(255,255,255,.1); color: var(--text); }
+.ntf-badge {
+  position: absolute; top: -4px; right: -4px; min-width: 22px; height: 22px; box-sizing: border-box; padding: 0 6px;
+  display: grid; place-items: center; border-radius: 11px; background: #ff5a5f; color: #fff; font-size: 12px; font-weight: 700;
+}
+
 /* 本棚: 縦置きの本が横に並ぶ。選ぶとオーバーレイに表紙が出て、開いて中身の要素が現れる */
 .shelf { position: absolute; inset: 0; overflow: hidden; padding: 0 16px; display: flex; flex-direction: column; justify-content: center; gap: 24px; background: #17140f; }
 .shelf-row { display: flex; align-items: flex-end; gap: 6px; }

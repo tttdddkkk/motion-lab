@@ -13,6 +13,8 @@ const STAGE_HTML = {
     + `<div class="screen b is-idle" data-t="incoming"><h3>画面 B</h3><div class="hero" data-i></div><div class="row" data-i></div><div class="row" data-i></div></div>`,
   box: () => '<div class="cmp-center"><div class="cmp-box" data-t="box"><span></span><span></span></div></div>',
   list: () => `<div class="cmp-center cmp-listwrap">${'<div class="cmp-item" data-i></div>'.repeat(5)}</div>`,
+  toast: v => `<div class="screen a"><h3>画面</h3>${rowsHtml(4)}</div>`
+    + `<div class="cmp-toast is-idle" data-t="toast" data-from="${v.params.from || 'bottom'}"><i></i>保存しました</div>`,
   origin: v => `<div class="screen a"><h3>画面 A</h3><button type="button" tabindex="-1" class="demo-btn cmp-anchor">ボタン</button></div>`
     + `<div class="screen b is-idle" data-t="reveal"><h3>画面 B</h3><div class="hero"></div></div>`
     + `<i class="cmp-mark" style="left:${v.params.x}%;top:${v.params.y}%"></i>`
@@ -65,7 +67,7 @@ export function mountCompare({ root, nav }) {
         <button type="button" class="play" data-play>▶ 再生</button>
         <button type="button" class="copy" data-copy>パラメータをコピー</button>
       </div>
-      <details class="cmp-tune"><summary>調整（duration / easing）</summary>
+      <details class="cmp-tune"${v.mode === 'none' ? ' hidden' : ''}><summary>調整（duration / easing）</summary>
         <div class="cmp-tune-body">
           <label>duration: <output data-dur-out></output>
             <input type="range" min="50" max="1200" step="10" data-dur aria-label="duration"></label>

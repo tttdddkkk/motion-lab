@@ -20,3 +20,5 @@
 | [0011](0011-viewer-open-motion-by-url-hash.md) | ビューアは URL の `#<id>` で最初に開くモーションを指定できるようにする | 採用 |
 | [0012](0012-comparison-view-separate-from-motions.md) | 認識合わせ用の「差分比較」ビューを、MOTIONS とは別のデータで持つ | 採用 |
 | [0013](0013-comment-flow-vertical.md) | 流れる文字は、横だけでなく縦（下→上）も作る | 採用 |
+| [0014](0014-notification-category.md) | 「通知」カテゴリを作り、チャットはコメントに含める | 採用 |
+| [0015](0015-manual-netlify-deploy.md) | Netlify の本番デプロイを、GitHub Actions の手動実行だけにする | 採用 |
