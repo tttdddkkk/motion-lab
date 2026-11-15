@@ -643,106 +643,164 @@ range.addEventListener('change', () => {
   {
     id: 'shelf-open',
     cat: 'expand',
-    name: '本棚リスト（本が開く）',
+    name: '本棚（選ぶと本が開く）',
     feel: '知的・やわらか',
-    use: '縦並びの一覧から選んで、中身をその場で展開する（目次・ライブラリ・設定）',
-    ms: 700,
-    easing: 'cubic-bezier(.65, 0, .35, 1)',
-    desc: '縦に並んだ本の背表紙を選ぶと、その本の表紙が上へ開いてページが現れる。別の本を選ぶと、開いていた本は閉じる。背表紙はクリックでも開閉できる。時間は1冊が開く長さ（高さ500ms + 表紙の回転500msを200msずらす）で、全体は約4秒。',
+    use: '棚状の一覧から選んで、詳細を全面で見せる（ライブラリ・図鑑・読み物）',
+    ms: 1400,
+    easing: 'cubic-bezier(.2, 0, 0, 1) / cubic-bezier(.65, 0, .35, 1)',
+    desc: '縦置きの本が横に並ぶ棚から1冊を選ぶと、背表紙の位置から本が持ち上がってオーバーレイの中央に表紙が現れ、表紙が開いて中身の要素が順に現れる。閉じるボタン・背景・Esc で、逆の順に棚へ戻る。時間は開く全体の長さ（持ち上げ450ms → 表紙の回転600ms → 中身の要素が80ms間隔）で、デモ全体は約4秒。',
     setup(stage, ctx) {
-      const OPEN_H = 132;                          // ページ部分の高さ（CSS の --open-h と合わせる）
-      const EASE = 'cubic-bezier(.65, 0, .35, 1)';
+      const LIFT = 'cubic-bezier(.2, 0, 0, 1)';       // 持ち上げ・中身の出現
+      const INOUT = 'cubic-bezier(.65, 0, .35, 1)';   // 表紙の回転
       const BOOKS = [
-        { title: '光の設計', author: '青木', color: '#8c2f39', chapter: '第1章 窓のかたち', text: '朝の光は、窓の高さで表情を変える。低い窓は床を照らし、高い窓は壁を伝って奥まで届く。' },
-        { title: '海辺の植物', author: '森下', color: '#1f5f5b', chapter: '第3章 砂の上で', text: '潮風にさらされる土地では、背の低い草ほど根を深く張る。見えない部分が、全体を支えている。' },
-        { title: '星の数え方', author: '石川', color: '#2f4a8a', chapter: '第2章 最初の一つ', text: '数え始めるのは、いちばん明るい星から。名前を覚えると、空の見え方が少し変わる。' },
-        { title: '台所の化学', author: '松本', color: '#6b4e1e', chapter: '第5章 火加減', text: '強い火は表面を、弱い火は中心を変える。待つ時間もまた、調理の一部になる。' },
-        { title: '地図の読み方', author: '高田', color: '#4b3a7a', chapter: '第1章 北を決める', text: '地図は、何を省くかで決まる。縮尺を変えると、同じ町が別の場所に見えてくる。' },
+        { title: '光の設計', author: '青木', color: '#8c2f39', h: 140, ch: ['窓のかたち', '朝の光', '影の長さ'], note: '朝の光は、窓の高さで表情を変える。低い窓は床を、高い窓は壁を照らす。' },
+        { title: '海辺の植物', author: '森下', color: '#1f5f5b', h: 128, ch: ['砂の上で', '潮風と根', '小さな花'], note: '潮風の強い土地では、背の低い草ほど根を深く張る。見えない部分が全体を支える。' },
+        { title: '星の数え方', author: '石川', color: '#2f4a8a', h: 150, ch: ['最初の一つ', '名前を覚える', '季節の星'], note: '数え始めるのは、いちばん明るい星から。名前を覚えると、空の見え方が変わる。' },
+        { title: '台所の化学', author: '松本', color: '#6b4e1e', h: 120, ch: ['火加減', '塩のはたらき', '待つ時間'], note: '強い火は表面を、弱い火は中心を変える。待つ時間も調理の一部になる。' },
+        { title: '地図の読み方', author: '高田', color: '#4b3a7a', h: 136, ch: ['北を決める', '縮尺', '記号の約束'], note: '地図は何を省くかで決まる。縮尺を変えると、同じ町が別の場所に見えてくる。' },
+        { title: '雨の音', author: '村上', color: '#3b5d2e', h: 132, ch: ['屋根の上', '傘の内側', '止む前に'], note: '雨音は、当たる素材で変わる。窓辺で聞く音と、葉の上で聞く音は別のものだ。' },
+        { title: '紙の歴史', author: '井上', color: '#8a4b1f', h: 146, ch: ['最初の一枚', '手漉きの町', '印刷のはじまり'], note: '一枚の紙には、繊維の向きがある。折りやすい方向を知ると、扱いが楽になる。' },
+        { title: '色の名前', author: '清水', color: '#7a2f5a', h: 118, ch: ['赤と朱', '藍の深さ', '白の種類'], note: '名前がつくと、色は見分けやすくなる。白だけでも、呼び方は数えきれない。' },
+        { title: '道具の手入れ', author: '山口', color: '#2d5a7a', h: 140, ch: ['刃を研ぐ', '油と布', 'しまい方'], note: '手入れは、使い終わった直後がいちばん短くて済む。続けるほど道具は手になじむ。' },
       ];
+      const LEVELS = [[0, 5], [5, 9]];   // 1段目に5冊、2段目に4冊
 
       stage.innerHTML = `
         <div class="shelf">
-          ${BOOKS.map((b, i) => `
-          <div class="book" style="--c:${b.color}">
-            <button class="book-spine" type="button" aria-expanded="false" aria-controls="shelf-pages-${i}">
-              <span class="book-title">${b.title}</span><span class="book-author">${b.author}</span>
-            </button>
-            <div class="book-pages" id="shelf-pages-${i}" role="region" aria-label="${b.title}の本文" inert>
-              <div class="book-paper"><div class="book-page"><h4>${b.chapter}</h4><p>${b.text}</p></div></div>
-              <div class="book-cover" aria-hidden="true">${b.title}</div>
+          ${LEVELS.map(([a, b]) => `
+          <div class="shelf-level">
+            <div class="shelf-row">${BOOKS.slice(a, b).map((k, j) => `
+              <button class="spine" type="button" data-i="${a + j}" aria-haspopup="dialog" aria-label="${k.title}（${k.author}）を開く"
+                style="--c:${k.color};--h:${k.h}px"><span>${k.title}</span></button>`).join('')}
             </div>
+            <div class="shelf-board"></div>
           </div>`).join('')}
-          <div class="shelf-board"></div>
+          <div class="shelf-overlay" role="dialog" aria-modal="true" aria-label="本の中身">
+            <div class="overlay-bg"></div>
+            <button class="overlay-close" type="button" aria-label="閉じる">×</button>
+            <div class="book3d">
+              <div class="book-inside"><div class="book-page"></div></div>
+              <div class="book-cover" aria-hidden="true"></div>
+            </div>
+          </div>
         </div>`;
       const shelf = stage.querySelector('.shelf');
-      const books = [...stage.querySelectorAll('.book')];
+      const levels = [...stage.querySelectorAll('.shelf-level')];
+      const spines = [...stage.querySelectorAll('.spine')];
+      const overlay = stage.querySelector('.shelf-overlay');
+      const bg = stage.querySelector('.overlay-bg');
+      const closeBtn = stage.querySelector('.overlay-close');
+      const book = stage.querySelector('.book3d');
+      const cover = stage.querySelector('.book-cover');
+      const page = stage.querySelector('.book-page');
       const wait = ms => new Promise(r => setTimeout(r, ctx.dur(ms)));
-      const busy = new Set();   // 開閉中の本。連打で状態が壊れないよう、その間の操作は受け付けない
-      let openIdx = -1;
+      let current = -1;     // 開いている（または開こうとしている）本
+      let busy = false;     // 開閉のアニメーション中。その間の操作は受け付けない
       let token = 0;
 
-      // 1冊を開く / 閉じる。最終状態は .is-open で持ち、アニメーションは途中の見た目だけを担う（終わったら cancel）
-      const move = async (i, open) => {
-        const book = books[i];
-        const pages = book.querySelector('.book-pages');
-        const cover = book.querySelector('.book-cover');
+      const fill = i => {
+        const k = BOOKS[i];
+        book.style.setProperty('--c', k.color);
+        cover.innerHTML = `<span class="cover-title">${k.title}</span><span class="cover-author">${k.author}</span>`;
+        page.innerHTML = `
+          <div class="reveal page-head"><h4>${k.title}</h4><span>${k.author}</span></div>
+          ${k.ch.map((c, n) => `<div class="reveal chap"><b>${n + 1}</b><span>${c}</span></div>`).join('')}
+          <p class="reveal page-note">${k.note}</p>`;
+      };
+      const a = (el, frames, duration, delay, easing) =>
+        el.animate(frames, { duration: ctx.dur(duration), delay: ctx.dur(delay), easing, fill: 'both' });
+      // 背表紙の位置・大きさから、表紙の位置へ移る変形（FLIP）。閉じるときは逆向きに使う
+      const liftFrom = i => {
+        const s = spines[i].getBoundingClientRect(), b = book.getBoundingClientRect();
+        const dx = s.left + s.width / 2 - (b.left + b.width / 2), dy = s.top + s.height / 2 - (b.top + b.height / 2);
+        return `translate(${dx}px, ${dy}px) scale(${s.width / b.width}, ${s.height / b.height})`;
+      };
+      const finish = async anims => {
+        try { await Promise.all(anims.map(x => x.finished)); } catch { return false; }   // reset で中断された
+        anims.forEach(x => x.cancel());
+        return true;
+      };
+
+      const openBook = async (i, { focus = false } = {}) => {
+        if (busy || current >= 0) return;
+        busy = true; current = i;
         const reduced = ctx.reduced();
         shelf.classList.toggle('is-reduced', reduced);
-        book.querySelector('.book-spine').setAttribute('aria-expanded', String(open));
-        pages.inert = !open;
-        if (open) book.classList.add('is-open');
-        const a = (el, frames, duration, delay = 0, easing = EASE) =>
-          el.animate(frames, { duration: ctx.dur(duration), delay: ctx.dur(delay), easing, fill: 'both' });
+        fill(i);
+        overlay.classList.add('is-open');     // 最終状態は class に持たせる
+        spines[i].classList.add('is-out');    // 持ち上げた本の跡は空けておく
+        levels.forEach(l => { l.inert = true; });
+        const items = [...page.querySelectorAll('.reveal')];
         let anims;
         if (reduced) {
-          // 動きを減らす: 高さと不透明度だけ。transform は使わない
+          // 動きを減らす: 不透明度だけ。表紙は回さず、薄れて中身に切り替わる
           anims = [
-            a(pages, open ? [{ height: '0px' }, { height: `${OPEN_H}px` }] : [{ height: `${OPEN_H}px` }, { height: '0px' }], 250, 0, 'linear'),
-            a(cover, open ? [{ opacity: 1 }, { opacity: 0 }] : [{ opacity: 0 }, { opacity: 1 }], 250, 0, 'linear'),
-          ];
-        } else if (open) {
-          anims = [
-            a(pages, [{ height: '0px' }, { height: `${OPEN_H}px` }], 500),
-            a(cover, [{ transform: 'rotateX(0deg)' }, { transform: 'rotateX(-100deg)' }], 500, 200),   // 高さが伸び始めてから表紙を開く
+            a(overlay, [{ opacity: 0 }, { opacity: 1 }], 250, 0, 'linear'),
+            a(cover, [{ opacity: 1 }, { opacity: 0 }], 250, 400, 'linear'),
+            ...items.map((el, n) => a(el, [{ opacity: 0 }, { opacity: 1 }], 200, 600 + n * 60, 'linear')),
           ];
         } else {
           anims = [
-            a(cover, [{ transform: 'rotateX(-100deg)' }, { transform: 'rotateX(0deg)' }], 350),       // 表紙が先に戻る
-            a(pages, [{ height: `${OPEN_H}px` }, { height: '0px' }], 400, 150),
+            a(bg, [{ opacity: 0 }, { opacity: 1 }], 250, 0, LIFT),
+            a(closeBtn, [{ opacity: 0 }, { opacity: 1 }], 250, 0, LIFT),
+            a(book, [{ transform: liftFrom(i) }, { transform: 'none' }], 450, 0, LIFT),
+            a(cover, [{ transform: 'rotateY(0deg)' }, { transform: 'rotateY(-100deg)' }], 600, 550, INOUT),
+            ...items.map((el, n) => a(el, [{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'none' }], 300, 750 + n * 80, LIFT)),
           ];
         }
-        busy.add(i);
-        try {
-          await Promise.all(anims.map(x => x.finished));
-        } catch { return; }   // run の頭の reset で中断された
-        busy.delete(i);
-        if (!open) book.classList.remove('is-open');
-        anims.forEach(x => x.cancel());
+        const ok = await finish(anims);
+        if (!ok) return;
+        busy = false;
+        if (focus) closeBtn.focus({ preventScroll: true });
       };
 
-      // 本を選ぶ。開いている本があれば、同時に閉じる
-      const choose = i => {
-        if (busy.has(i) || (openIdx >= 0 && busy.has(openIdx))) return Promise.resolve();
-        const jobs = [];
-        if (openIdx >= 0) jobs.push(move(openIdx, false));
-        if (openIdx === i) openIdx = -1;
-        else { jobs.push(move(i, true)); openIdx = i; }
-        return Promise.all(jobs);
+      const closeBook = async ({ focus = false } = {}) => {
+        if (busy || current < 0) return;
+        busy = true;
+        const i = current;
+        const reduced = ctx.reduced();
+        const items = [...page.querySelectorAll('.reveal')];
+        let anims;
+        if (reduced) {
+          anims = [
+            ...items.map(el => a(el, [{ opacity: 1 }, { opacity: 0 }], 150, 0, 'linear')),
+            a(cover, [{ opacity: 0 }, { opacity: 1 }], 250, 100, 'linear'),
+            a(overlay, [{ opacity: 1 }, { opacity: 0 }], 250, 350, 'linear'),
+          ];
+        } else {
+          anims = [
+            ...items.map(el => a(el, [{ opacity: 1 }, { opacity: 0 }], 150, 0, LIFT)),
+            a(cover, [{ transform: 'rotateY(-100deg)' }, { transform: 'rotateY(0deg)' }], 400, 100, INOUT),
+            a(book, [{ transform: 'none' }, { transform: liftFrom(i) }], 400, 500, LIFT),     // 棚の元の位置へ戻る
+            a(bg, [{ opacity: 1 }, { opacity: 0 }], 300, 600, LIFT),
+            a(closeBtn, [{ opacity: 1 }, { opacity: 0 }], 300, 600, LIFT),
+          ];
+        }
+        const ok = await finish(anims);
+        if (!ok) return;
+        overlay.classList.remove('is-open');   // 終わってから外し、アニメーションは cancel 済み
+        spines[i].classList.remove('is-out');
+        levels.forEach(l => { l.inert = false; });
+        current = -1; busy = false;
+        if (focus) spines[i].focus({ preventScroll: true });
       };
 
       const reset = () => {
         stage.getAnimations({ subtree: true }).forEach(x => x.cancel());
-        books.forEach(book => {
-          book.classList.remove('is-open');
-          book.querySelector('.book-spine').setAttribute('aria-expanded', 'false');
-          book.querySelector('.book-pages').inert = true;
-        });
-        busy.clear();
-        openIdx = -1;
+        overlay.classList.remove('is-open');
+        spines.forEach(s => s.classList.remove('is-out'));
+        levels.forEach(l => { l.inert = false; });
+        current = -1; busy = false;
       };
 
-      books.forEach((book, i) => {
-        book.querySelector('.book-spine').addEventListener('click', () => { token++; choose(i); });
+      // 手で操作したら、デモの自動再生は止める
+      spines.forEach((s, i) => s.addEventListener('click', () => { token++; openBook(i, { focus: true }); }));
+      const userClose = () => { token++; closeBook({ focus: true }); };
+      closeBtn.addEventListener('click', userClose);
+      bg.addEventListener('click', userClose);
+      overlay.addEventListener('keydown', e => {
+        if (e.key === 'Escape') { e.stopPropagation(); userClose(); }
+        if (e.key === 'Tab') { e.preventDefault(); closeBtn.focus({ preventScroll: true }); }   // 操作できるのは閉じるボタンだけ
       });
 
       const run = async () => {
@@ -751,79 +809,115 @@ range.addEventListener('change', () => {
         const alive = () => my === token && shelf.isConnected;
         await wait(300);
         if (!alive()) return;
-        await choose(2);                 // 開く
+        await openBook(2);
         if (!alive()) return;
-        await wait(900);
+        await wait(1200);                // 中身を見せる
         if (!alive()) return;
-        await choose(0);                 // 別の本を選ぶ: 開いていた本は閉じ、選んだ本が開く
-        if (!alive()) return;
-        await wait(900);
-        if (!alive()) return;
-        await choose(0);                 // 閉じる
+        await closeBook();
         if (alive()) await wait(300);
       };
       return { run };
     },
     code: {
-      css: `.book { perspective: 700px; }
-.pages { position: relative; height: 0; /* 閉じる: 表紙が先に戻り、高さは .15s 遅れて縮む */
-  transition: height .4s cubic-bezier(.65, 0, .35, 1) .15s; }
-.book.is-open .pages { height: 132px; /* 開く: 高さが伸び始めて .2s 後に表紙が回る */
-  transition: height .5s cubic-bezier(.65, 0, .35, 1) 0s; }
-.cover {
-  position: absolute; inset: 0;          /* ページの領域と同じ大きさ（高さに追従する） */
-  transform-origin: 50% 0;               /* 背表紙の下の辺を蝶番にする */
-  backface-visibility: hidden;           /* 90°を超えたら見えなくなる */
-  transition: transform .35s cubic-bezier(.65, 0, .35, 1) 0s;
-}
-.book.is-open .cover {
-  transform: rotateX(-100deg);
-  transition: transform .5s cubic-bezier(.65, 0, .35, 1) .2s;
-}`,
-      waapi: `const OPEN_H = 132, EASE = 'cubic-bezier(.65, 0, .35, 1)';
-const anim = (el, frames, duration, delay = 0) =>
-  el.animate(frames, { duration, delay, easing: EASE, fill: 'both' });
+      css: `/* 棚: 本は縦置きで横に並べる。背表紙の文字は縦書き */
+.row   { display: flex; align-items: flex-end; gap: 6px; }
+.spine { width: 38px; height: var(--h); writing-mode: vertical-rl; background: var(--c); }
 
-function open(book) {
-  book.classList.add('is-open');   // 最終状態は class に持たせる
-  const pages = book.querySelector('.pages');
-  const cover = book.querySelector('.cover');
-  return Promise.all([
-    anim(pages, [{ height: '0px' }, { height: OPEN_H + 'px' }], 500),
-    anim(cover, [{ transform: 'rotateX(0deg)' }, { transform: 'rotateX(-100deg)' }], 500, 200),
-  ].map(a => a.finished.then(() => a.cancel())));
+@keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+
+/* オーバーレイ: 開いたら表示し、3つの動きを時間差でつなぐ */
+.overlay { display: none; place-items: center; position: absolute; inset: 0; }
+.overlay.is-open { display: grid; }
+.overlay.is-open .bg { animation: fade .25s cubic-bezier(.2, 0, 0, 1) both; }
+
+/* 1. 背表紙の位置から持ち上がる。--dx --dy --sx --sy は背表紙と表紙の位置の差（WAAPI のタブを参照） */
+.overlay.is-open .book {
+  perspective: 900px;
+  animation: lift .45s cubic-bezier(.2, 0, 0, 1) both;
+}
+@keyframes lift {
+  from { transform: translate(var(--dx), var(--dy)) scale(var(--sx), var(--sy)); }
+  to   { transform: none; }
 }
 
-async function close(book) {
-  const pages = book.querySelector('.pages');
-  const cover = book.querySelector('.cover');
+/* 2. 表紙が左の辺を軸に開く。.55s 待って、持ち上がりが落ち着いてから */
+.cover { transform-origin: 0 50%; backface-visibility: hidden; }
+.overlay.is-open .cover {
+  transform: rotateY(-100deg);
+  animation: cover-open .6s cubic-bezier(.65, 0, .35, 1) .55s both;
+}
+@keyframes cover-open {
+  from { transform: rotateY(0deg); }
+  to   { transform: rotateY(-100deg); }
+}
+
+/* 3. 中身の要素が順に現れる（--i は 0, 1, 2…）。表紙が半分開いたころから */
+.overlay.is-open .reveal {
+  animation: reveal .3s cubic-bezier(.2, 0, 0, 1) both;
+  animation-delay: calc(.75s + var(--i) * .08s);
+}
+@keyframes reveal {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: none; }
+}
+/* 閉じるときは逆の順（中身 → 表紙 → 棚へ戻る）。WAAPI のタブを参照 */`,
+      waapi: `const LIFT = 'cubic-bezier(.2, 0, 0, 1)', INOUT = 'cubic-bezier(.65, 0, .35, 1)';
+const anim = (el, frames, duration, delay, easing) =>
+  el.animate(frames, { duration, delay, easing, fill: 'both' });
+
+// 背表紙の位置・大きさから表紙の位置へ移る変形（FLIP）。閉じるときは逆向きに使う
+function liftFrom(spine) {
+  const s = spine.getBoundingClientRect(), b = book.getBoundingClientRect();
+  const dx = s.left + s.width / 2 - (b.left + b.width / 2);
+  const dy = s.top + s.height / 2 - (b.top + b.height / 2);
+  return \`translate(\${dx}px, \${dy}px) scale(\${s.width / b.width}, \${s.height / b.height})\`;
+}
+
+async function open(spine) {
+  overlay.classList.add('is-open');    // 最終状態は class に持たせる
+  spine.classList.add('is-out');       // 持ち上げた本の跡は空けておく
   const anims = [
-    anim(cover, [{ transform: 'rotateX(-100deg)' }, { transform: 'rotateX(0deg)' }], 350),
-    anim(pages, [{ height: OPEN_H + 'px' }, { height: '0px' }], 400, 150),
+    anim(bg,    [{ opacity: 0 }, { opacity: 1 }], 250, 0, LIFT),
+    anim(close, [{ opacity: 0 }, { opacity: 1 }], 250, 0, LIFT),
+    anim(book,  [{ transform: liftFrom(spine) }, { transform: 'none' }], 450, 0, LIFT),
+    anim(cover, [{ transform: 'rotateY(0deg)' }, { transform: 'rotateY(-100deg)' }], 600, 550, INOUT),
+    ...items.map((el, n) => anim(el,
+      [{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'none' }],
+      300, 750 + n * 80, LIFT)),
   ];
   await Promise.all(anims.map(a => a.finished));
-  book.classList.remove('is-open');   // 終わってから class を外し、そのあと cancel（ちらつき防止）
   anims.forEach(a => a.cancel());
 }
 
-// 本を選ぶ: 開いている本があれば同時に閉じる
-let current = null;
-shelf.addEventListener('click', e => {
-  const book = e.target.closest('.book');
-  if (!book) return;
-  if (current && current !== book) close(current);
-  if (current === book) { close(book); current = null; }
-  else { open(book); current = book; }
-});`,
+async function closeIt(spine) {
+  const anims = [
+    ...items.map(el => anim(el, [{ opacity: 1 }, { opacity: 0 }], 150, 0, LIFT)),
+    anim(cover, [{ transform: 'rotateY(-100deg)' }, { transform: 'rotateY(0deg)' }], 400, 100, INOUT),
+    anim(book,  [{ transform: 'none' }, { transform: liftFrom(spine) }], 400, 500, LIFT),   // 棚の元の位置へ戻る
+    anim(bg,    [{ opacity: 1 }, { opacity: 0 }], 300, 600, LIFT),
+    anim(close, [{ opacity: 1 }, { opacity: 0 }], 300, 600, LIFT),
+  ];
+  await Promise.all(anims.map(a => a.finished));
+  overlay.classList.remove('is-open');   // 終わってから class を外し、そのあと cancel（ちらつき防止）
+  spine.classList.remove('is-out');
+  anims.forEach(a => a.cancel());
+}`,
       reduced: `@media (prefers-reduced-motion: reduce) {
-  /* 表紙は回さず、高さと不透明度だけで開閉する（transform は使わない） */
-  .pages, .book.is-open .pages { transition: height .25s linear 0s; }
-  .cover, .book.is-open .cover {
+  /* 持ち上げと表紙の回転はやめる。オーバーレイと中身は不透明度だけで出し入れし、
+     表紙は回さずに薄れて中身へ切り替える（transform は使わない） */
+  .overlay.is-open { animation: fade .25s linear both; }
+  .overlay.is-open .bg { animation: none; }
+  .overlay.is-open .book { animation: none; }
+  .overlay.is-open .cover {
     transform: none;
-    transition: opacity .25s linear 0s;
+    animation: fade-out .25s linear .4s both;
   }
-  .book.is-open .cover { opacity: 0; }
-}`
+  .overlay.is-open .reveal {
+    animation: fade .2s linear both;
+    animation-delay: calc(.6s + var(--i) * .06s);
+  }
+}
+@keyframes fade-out { from { opacity: 1; } to { opacity: 0; } }`
     }
   }
 ];

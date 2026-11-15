@@ -58,40 +58,50 @@
   font-size: 14px; line-height: 20px; overflow-wrap: anywhere; transform-origin: 0 100%;
 }
 
-/* 本棚リスト: 背表紙を選ぶと、表紙が上へ開いてページが現れる。開くのは1冊だけ（アコーディオン） */
-.shelf { position: absolute; inset: 0; overflow: hidden; padding: 24px 16px 0; display: flex; flex-direction: column; gap: 6px; background: #17140f; --open-h: 132px; }
-.book { perspective: 700px; }
-.book-spine {
-  display: flex; align-items: center; gap: 10px; width: 100%; height: 46px; padding: 0 14px;
-  border: 0; border-radius: 6px; color: #fff; text-align: left; position: relative;
-  background: linear-gradient(90deg, rgba(0,0,0,.28), transparent 14%, transparent 86%, rgba(0,0,0,.22)), var(--c);
+/* 本棚: 縦置きの本が横に並ぶ。選ぶとオーバーレイに表紙が出て、開いて中身の要素が現れる */
+.shelf { position: absolute; inset: 0; overflow: hidden; padding: 0 16px; display: flex; flex-direction: column; justify-content: center; gap: 24px; background: #17140f; }
+.shelf-row { display: flex; align-items: flex-end; gap: 6px; }
+.shelf-board { height: 10px; margin: 0 -16px; background: linear-gradient(180deg, #6b4a2a, #4a3119); }
+.spine {
+  flex: none; width: 38px; height: var(--h); padding: 20px 0 0; border: 0; border-radius: 3px 3px 0 0;
+  writing-mode: vertical-rl; text-align: start; font-size: 13px; font-weight: 700; letter-spacing: .08em; color: #fff; position: relative;
+  background: linear-gradient(90deg, rgba(0,0,0,.3), transparent 22%, transparent 78%, rgba(0,0,0,.25)), var(--c);
   -webkit-tap-highlight-color: transparent;
 }
-.book-spine::before, .book-spine::after { content: ''; position: absolute; top: 0; bottom: 0; width: 2px; background: rgba(240,200,120,.55); }
-.book-spine::before { left: 8px; }
-.book-spine::after { right: 8px; }
-.book-spine:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.book-title { font-weight: 700; font-size: 14px; }
-.book-author { margin-left: auto; font-size: 11px; color: rgba(255,255,255,.8); }
-.book.is-open .book-spine { border-radius: 6px 6px 0 0; }
-.book-pages { position: relative; height: 0; }
-.book.is-open .book-pages { height: var(--open-h); }
-.book-paper {
-  position: absolute; inset: 0; overflow: hidden;
-  border-radius: 0 0 6px 6px; background: #f3ecdc; color: #2b2a26; font-size: 12.5px; line-height: 1.7;
+.spine::before, .spine::after { content: ''; position: absolute; left: 0; right: 0; height: 2px; background: rgba(240,200,120,.55); }
+.spine::before { top: 9px; }
+.spine::after { bottom: 9px; }
+.spine:hover { filter: brightness(1.18); }
+.spine:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.spine.is-out { opacity: 0; }
+
+.shelf-overlay { position: absolute; inset: 0; display: none; place-items: center; }
+.shelf-overlay.is-open { display: grid; }
+.overlay-bg { position: absolute; inset: 0; background: rgba(8,7,5,.78); }
+.overlay-close {
+  position: absolute; top: 10px; right: 10px; z-index: 3; width: 32px; height: 32px; border: 0; border-radius: 50%;
+  background: rgba(255,255,255,.16); color: #fff; font-size: 18px; line-height: 1;
 }
-/* 余白は内側の要素に持たせる（高さ0のときに padding ぶんがはみ出さないように） */
-.book-page { padding: 12px 18px; }
-.book-paper h4 { margin: 0 0 4px; font-size: 13px; }
-.book-paper p { margin: 0; }
+.overlay-close:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.book3d { position: relative; z-index: 1; width: 176px; height: 272px; perspective: 900px; }
+.book-inside {
+  position: absolute; inset: 0; overflow: hidden; border-radius: 3px 8px 8px 3px; background: #f3ecdc; color: #2b2a26;
+  box-shadow: 4px 6px 0 -2px #e0d6bd, 0 14px 30px rgba(0,0,0,.5);
+}
+.book-page { padding: 18px 16px; display: grid; gap: 6px; align-content: start; }
+.page-head h4 { margin: 0; font-size: 16px; }
+.page-head span { font-size: 11px; color: #6d655a; }
+.chap { display: flex; gap: 10px; align-items: baseline; padding: 6px 0 0; border-top: 1px solid #d9cfb8; font-size: 12.5px; }
+.chap b { color: var(--c); font-variant-numeric: tabular-nums; }
+.page-note { margin: 6px 0 0; font-size: 11.5px; line-height: 1.7; color: #4a4538; }
 .book-cover {
-  position: absolute; inset: 0; z-index: 1; overflow: hidden; box-sizing: border-box;
-  display: grid; place-items: center; border-radius: 0 0 6px 6px; color: rgba(240,200,120,.9); font-weight: 700;
-  background: linear-gradient(180deg, rgba(0,0,0,.2), transparent 30%), var(--c);
-  box-shadow: inset 0 0 0 6px rgba(0,0,0,.12), inset 0 0 0 7px rgba(240,200,120,.5);
-  transform-origin: 50% 0; backface-visibility: hidden; pointer-events: none;
+  position: absolute; inset: 0; display: grid; place-content: center; gap: 10px; text-align: center; color: #f0c878;
+  border-radius: 3px 8px 8px 3px; transform-origin: 0 50%; backface-visibility: hidden; pointer-events: none;
+  background: linear-gradient(90deg, rgba(0,0,0,.35), transparent 10%), var(--c);
+  box-shadow: inset 0 0 0 7px rgba(0,0,0,.12), inset 0 0 0 8px rgba(240,200,120,.5);
 }
-.book.is-open .book-cover { transform: rotateX(-100deg); }
+.cover-title { font-size: 20px; font-weight: 700; letter-spacing: .06em; }
+.cover-author { font-size: 12px; color: rgba(255,255,255,.8); }
+.shelf-overlay.is-open .book-cover { transform: rotateY(-100deg); }
 /* 動きを減らす: 表紙は回さず、不透明度だけで消す */
-.shelf.is-reduced .book.is-open .book-cover { transform: none; opacity: 0; }
-.shelf-board { flex: none; height: 10px; margin: 2px -16px 0; background: linear-gradient(180deg, #6b4a2a, #4a3119); }
+.shelf.is-reduced .shelf-overlay.is-open .book-cover { transform: none; opacity: 0; }
