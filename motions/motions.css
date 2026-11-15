@@ -57,3 +57,41 @@
   border-radius: 16px 16px 16px 4px; background: #2f3a52; color: var(--text);
   font-size: 14px; line-height: 20px; overflow-wrap: anywhere; transform-origin: 0 100%;
 }
+
+/* 本棚リスト: 背表紙を選ぶと、表紙が上へ開いてページが現れる。開くのは1冊だけ（アコーディオン） */
+.shelf { position: absolute; inset: 0; overflow: hidden; padding: 24px 16px 0; display: flex; flex-direction: column; gap: 6px; background: #17140f; --open-h: 132px; }
+.book { perspective: 700px; }
+.book-spine {
+  display: flex; align-items: center; gap: 10px; width: 100%; height: 46px; padding: 0 14px;
+  border: 0; border-radius: 6px; color: #fff; text-align: left; position: relative;
+  background: linear-gradient(90deg, rgba(0,0,0,.28), transparent 14%, transparent 86%, rgba(0,0,0,.22)), var(--c);
+  -webkit-tap-highlight-color: transparent;
+}
+.book-spine::before, .book-spine::after { content: ''; position: absolute; top: 0; bottom: 0; width: 2px; background: rgba(240,200,120,.55); }
+.book-spine::before { left: 8px; }
+.book-spine::after { right: 8px; }
+.book-spine:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.book-title { font-weight: 700; font-size: 14px; }
+.book-author { margin-left: auto; font-size: 11px; color: rgba(255,255,255,.8); }
+.book.is-open .book-spine { border-radius: 6px 6px 0 0; }
+.book-pages { position: relative; height: 0; }
+.book.is-open .book-pages { height: var(--open-h); }
+.book-paper {
+  position: absolute; inset: 0; overflow: hidden;
+  border-radius: 0 0 6px 6px; background: #f3ecdc; color: #2b2a26; font-size: 12.5px; line-height: 1.7;
+}
+/* 余白は内側の要素に持たせる（高さ0のときに padding ぶんがはみ出さないように） */
+.book-page { padding: 12px 18px; }
+.book-paper h4 { margin: 0 0 4px; font-size: 13px; }
+.book-paper p { margin: 0; }
+.book-cover {
+  position: absolute; inset: 0; z-index: 1; overflow: hidden; box-sizing: border-box;
+  display: grid; place-items: center; border-radius: 0 0 6px 6px; color: rgba(240,200,120,.9); font-weight: 700;
+  background: linear-gradient(180deg, rgba(0,0,0,.2), transparent 30%), var(--c);
+  box-shadow: inset 0 0 0 6px rgba(0,0,0,.12), inset 0 0 0 7px rgba(240,200,120,.5);
+  transform-origin: 50% 0; backface-visibility: hidden; pointer-events: none;
+}
+.book.is-open .book-cover { transform: rotateX(-100deg); }
+/* 動きを減らす: 表紙は回さず、不透明度だけで消す */
+.shelf.is-reduced .book.is-open .book-cover { transform: none; opacity: 0; }
+.shelf-board { flex: none; height: 10px; margin: 2px -16px 0; background: linear-gradient(180deg, #6b4a2a, #4a3119); }

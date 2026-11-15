@@ -250,3 +250,4 @@ export const CircleReveal = story('circle-reveal');
 export const FlowSeek = story('flow-seek');
 export const FlowSeekVertical = story('flow-seek-vertical');
 export const ChatPop = story('chat-pop');
+export const ShelfOpen = story('shelf-open');
