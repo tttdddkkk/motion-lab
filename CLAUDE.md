@@ -14,13 +14,9 @@
 - すべてのモーションに「動きを減らす」版を用意する。その版では transform と clip-path を使わない（テストで強制している）
 - デモとコードはすべてオリジナルで作る。案件由来のコードや、外部サイトのデモ・コードは使わない
 
-## モダン CSS を使うときの対応ブラウザ確認
+## モダン CSS
 
-コードは利用者が自分の実装へコピーするため、ビューアで動くだけでは足りない。新しめの CSS 機能（`animation-timeline`、`@starting-style`、`@property`、`linear()` など）を使う前に、記憶ではなく MDN（BCD）・Baseline・caniuse で今の対応状況を調べる（背景は ADR 0016）。
-
-- 既定の下限は Baseline Widely available。Newly available は `@supports` / `CSS.supports()` で判定し、代替を用意したときだけ使う（先例: `compare-ui.js` の `clipSupported()`）。Baseline 外はビューア本体に入れない
-- PR 本文に「機能 / Chrome・Safari(iOS)・Firefox の対応開始バージョン / Baseline 区分 / 調べた日 / 未対応時の挙動」を書く
-- 判断に迷うもの（Baseline の境目、情報源の食い違い、実機で確認できない）は使わずに作業者へ確認する
+コードは利用者が自分の実装へコピーする。新しめの CSS 機能を使う前に、対応ブラウザを調べる（スキル `check-css-browser-support`）。既定の下限は Baseline Widely available（ADR 0016）。
 
 ## 前提と判断基準
 
@@ -43,19 +39,11 @@
 
 PR のレビュー（`.github/workflows/claude-code-review.yml`）の方針・評価レベル・マージ判定は [docs/review-policy.md](docs/review-policy.md) にある。レビュー方針を変えるときはそこを直す。
 
-## PR 作成後の流れ
+## PR 作成後
 
-1. CI（`test` ジョブ: `npm test` と `npm run build-storybook`）の結果を確認する。失敗していたら原因を調べて直す
-2. Netlify の Deploy Preview（`deploy-preview-<PR番号>--motion-lab-tttdddkkk.netlify.app`）が発行されたら、URL を PR 本文に記載する。ビューアのプレビューであり、Storybook は含まれない
-3. 作業者に報告する
+CI の確認、Deploy Preview の URL 記載、作業者への報告はスキル `after-pr` に従う。
 
-### 報告の形式
-
-- 変更点を短く書く
-- 確認してほしい画面と URL（プレビューURL + 見てほしい操作）を明記する。モーションを追加・変更したときは URL の末尾に `#<id>` を付けて、そのモーションを直接開く形にする（ADR 0011）
-- 要確認の点があれば「要確認」として書く
-
-### やってはいけないこと
+## やってはいけないこと
 
 - テストを消す・スキップして通す
 - CI やルールセットの設定を無断で緩める
