@@ -639,10 +639,10 @@ range.addEventListener('change', () => {
 }`
     }
   },
-  // ---- メッセージ（通知系）。チャットはコメントに含める（docs/adr/0014） ----
+  // ---- 通知。チャットはコメントに含める（docs/adr/0014） ----
   {
     id: 'toast',
-    cat: 'message',
+    cat: 'notice',
     name: 'トースト',
     feel: 'すっと・控えめ',
     use: '保存・送信の完了通知（タップで閉じられる）',
@@ -730,7 +730,7 @@ toast.remove();`,
   },
   {
     id: 'banner-drop',
-    cat: 'message',
+    cat: 'notice',
     name: 'バナー（上から降りる）',
     feel: '目立つ・知らせる',
     use: '重要なお知らせ・新着通知',
@@ -809,7 +809,7 @@ banner.remove();`,
   },
   {
     id: 'badge-pop',
-    cat: 'message',
+    cat: 'notice',
     name: 'バッジ（件数ポコっ）',
     feel: '軽快・弾む',
     use: '未読件数・通知数の更新',

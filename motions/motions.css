@@ -58,7 +58,7 @@
   font-size: 14px; line-height: 20px; overflow-wrap: anywhere; transform-origin: 0 100%;
 }
 
-/* メッセージ（通知系）: アプリ画面の上に通知が出る。映像は使わない */
+/* 通知: アプリ画面の上に通知が出る。映像は使わない */
 .ntf { position: absolute; inset: 0; overflow: hidden; background: #151a24; padding: 72px 16px 16px; display: grid; align-content: start; gap: 12px; box-sizing: border-box; }
 .ntf-row { height: 54px; border-radius: 12px; background: rgba(255,255,255,.08); }
 .ntf-toast {
