@@ -230,6 +230,23 @@ function story(id) {
         }
       }
 
+      if (motion.id === 'ticker') {
+        await step('ティッカー・動きを減らす: 流す用の文字列は隠れ、1件ずつの文字だけが見える', async () => {
+          motion.setup(stage, { dur: ms => ms / 4, reduced: () => true }).run().catch(() => {});
+          await frame();
+          await expect(getComputedStyle(stage.querySelector('.tx-track')).display).toBe('none');
+          await expect(getComputedStyle(stage.querySelector('.tx-static')).display).not.toBe('none');
+          stage.getAnimations({ subtree: true }).forEach(a => a.cancel());
+        });
+        await step('ティッカー・通常: 1件ずつの文字は隠れ、流す用の文字列が見える', async () => {
+          motion.setup(stage, { dur: ms => ms / 4, reduced: () => false }).run().catch(() => {});
+          await frame();
+          await expect(getComputedStyle(stage.querySelector('.tx-track')).display).not.toBe('none');
+          await expect(getComputedStyle(stage.querySelector('.tx-static')).display).toBe('none');
+          stage.getAnimations({ subtree: true }).forEach(a => a.cancel());
+        });
+      }
+
       const button = stage.querySelector('button.demo-btn');
       if (button) {
         await step('ボタンをクリックするとアニメーションが始まる', async () => {

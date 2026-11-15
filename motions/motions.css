@@ -73,6 +73,8 @@
 .tx-track { display: flex; width: max-content; white-space: nowrap; }
 .tx-track span { padding-left: 16px; padding-right: 16px; }
 .tx-static { display: block; padding: 0 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* 上の display 指定は hidden 属性（UA の display: none）より優先されるため、hidden のときを明示する */
+.tx-track[hidden], .tx-static[hidden] { display: none; }
 /* テキスト: 同期ハイライト（歌詞・書き起こし） */
 .tx-sync { position: absolute; inset: 0; display: grid; grid-template-rows: 1fr auto; }
 .tx-sync-frame { position: relative; overflow: hidden; background: #151a24; }
