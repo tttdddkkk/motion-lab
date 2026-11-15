@@ -750,7 +750,7 @@ range.addEventListener('change', () => {
             a(closeBtn, [{ opacity: 0 }, { opacity: 1 }], 250, 0, LIFT),
             // 背表紙の面を向いた姿勢から、縦軸で回りながら持ち上がり、表紙の面が正面に来る
             a(book, [{ transform: poseOf(i) }, { transform: 'none' }], 500, 0, INOUT),
-            a(front, [{ transform: 'rotateY(90deg)' }, { transform: 'rotateY(0deg)' }], 500, 0, INOUT),
+            a(front, [{ transform: 'rotateY(90deg)', visibility: 'hidden' }, { transform: 'rotateY(0deg)', visibility: 'visible' }], 500, 0, INOUT),
             a(face, [{ transform: 'rotateY(0deg)', visibility: 'visible' }, { transform: 'rotateY(-90deg)', visibility: 'hidden' }], 500, 0, INOUT),   // 回り終えたら消す（真横の細い線を残さない）
             a(cover, [{ transform: 'rotateY(0deg)' }, { transform: 'rotateY(-100deg)' }], 600, 550, INOUT),
             ...items.map((el, n) => a(el, [{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'none' }], 300, 750 + n * 80, LIFT)),
@@ -777,7 +777,7 @@ range.addEventListener('change', () => {
             a(cover, [{ transform: 'rotateY(-100deg)' }, { transform: 'rotateY(0deg)' }], 400, 100, INOUT),
             // 縦軸で回りながら棚へ戻り、背表紙の面が棚の背表紙に重なったところで終わる
             a(book, [{ transform: 'none' }, { transform: poseOf(i) }], 500, 500, INOUT),
-            a(front, [{ transform: 'rotateY(0deg)' }, { transform: 'rotateY(90deg)' }], 500, 500, INOUT),
+            a(front, [{ transform: 'rotateY(0deg)', visibility: 'visible' }, { transform: 'rotateY(90deg)', visibility: 'hidden' }], 500, 500, INOUT),
             a(face, [{ transform: 'rotateY(-90deg)', visibility: 'hidden' }, { transform: 'rotateY(0deg)', visibility: 'visible' }], 500, 500, INOUT),
             a(bg, [{ opacity: 1 }, { opacity: 0 }], 300, 700, LIFT),
             a(closeBtn, [{ opacity: 1 }, { opacity: 0 }], 300, 700, LIFT),
@@ -837,8 +837,9 @@ range.addEventListener('change', () => {
 @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
 
 /* 本は「表紙の面 .front」と「背表紙の面 .spine-face」を、左辺(蝶番)でつないだ箱 */
-.book { position: relative; perspective: 900px; transform-origin: 0 50%; }
-.front { position: absolute; inset: 0; perspective: 900px; transform-origin: 0 50%; }
+/* 遠近の中心は回転の軸（左辺）に置く。中央だと、真横を向いても細い面が見えて残る */
+.book  { position: relative; perspective: 900px; perspective-origin: 0 50%; transform-origin: 0 50%; }
+.front { position: absolute; inset: 0; perspective: 900px; perspective-origin: 0 50%; transform-origin: 0 50%; }
 .spine-face {
   position: absolute; top: 0; right: 100%;   /* 表紙の左辺の外側。幅は背表紙の幅 ÷ 縮尺（--k） */
   width: calc(38px * var(--k)); height: 100%;
@@ -853,7 +854,10 @@ range.addEventListener('change', () => {
 .overlay.is-open .front      { animation: turn-front .5s cubic-bezier(.65, 0, .35, 1) both; }
 .overlay.is-open .spine-face { animation: turn-face .5s cubic-bezier(.65, 0, .35, 1) both; }
 @keyframes lift       { from { transform: var(--pose); } to { transform: none; } }
-@keyframes turn-front { from { transform: rotateY(90deg); } to { transform: rotateY(0deg); } }
+@keyframes turn-front {
+  from { transform: rotateY(90deg); visibility: hidden; }
+  to   { transform: rotateY(0deg); visibility: visible; }
+}
 @keyframes turn-face  {
   from { transform: rotateY(0deg); visibility: visible; }
   to   { transform: rotateY(-90deg); visibility: hidden; }
@@ -902,7 +906,8 @@ async function open(spine, bookHeight) {
     anim(close, [{ opacity: 0 }, { opacity: 1 }], 250, 0, LIFT),
     // 背表紙の面を向いた姿勢から、縦軸で回りながら持ち上がる
     anim(book,  [{ transform: poseOf(spine, bookHeight) }, { transform: 'none' }], 500, 0, INOUT),
-    anim(front, [{ transform: 'rotateY(90deg)' }, { transform: 'rotateY(0deg)' }], 500, 0, INOUT),
+    anim(front, [{ transform: 'rotateY(90deg)', visibility: 'hidden' },
+                 { transform: 'rotateY(0deg)', visibility: 'visible' }], 500, 0, INOUT),
     anim(face,  [{ transform: 'rotateY(0deg)', visibility: 'visible' },
                  { transform: 'rotateY(-90deg)', visibility: 'hidden' }], 500, 0, INOUT),   // 回り終えたら消す
     anim(cover, [{ transform: 'rotateY(0deg)' }, { transform: 'rotateY(-100deg)' }], 600, 550, INOUT),
@@ -920,7 +925,8 @@ async function closeIt(spine, bookHeight) {
     anim(cover, [{ transform: 'rotateY(-100deg)' }, { transform: 'rotateY(0deg)' }], 400, 100, INOUT),
     // 縦軸で回りながら棚へ戻り、背表紙の面が棚の背表紙に重なったところで終わる
     anim(book,  [{ transform: 'none' }, { transform: poseOf(spine, bookHeight) }], 500, 500, INOUT),
-    anim(front, [{ transform: 'rotateY(0deg)' }, { transform: 'rotateY(90deg)' }], 500, 500, INOUT),
+    anim(front, [{ transform: 'rotateY(0deg)', visibility: 'visible' },
+                 { transform: 'rotateY(90deg)', visibility: 'hidden' }], 500, 500, INOUT),
     anim(face,  [{ transform: 'rotateY(-90deg)', visibility: 'hidden' },
                  { transform: 'rotateY(0deg)', visibility: 'visible' }], 500, 500, INOUT),
     anim(bg,    [{ opacity: 1 }, { opacity: 0 }], 300, 700, LIFT),
