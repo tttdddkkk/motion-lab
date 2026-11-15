@@ -3,8 +3,21 @@
    追加したら stories/motions.stories.js にも1行足す（テストで漏れを検出する）。
    setup(stage, ctx) -> { run(x?, y?) : Promise }
    ctx.dur(ms)    再生速度を反映した時間
+   ctx.wait(ms)   dur(ms) だけ待つ Promise
    ctx.reduced()  「動きを減らす」がONか
+   ctx は makeCtx で作る（ビューアとストーリーで共通）。
    ============================================================ */
+
+/* モーションに渡す ctx を作る。rate は再生速度を返す関数（ビューアで途中から変わるため、値ではなく関数） */
+export function makeCtx({ rate = () => 1, reduced = () => false } = {}) {
+  const dur = ms => ms / rate();
+  return { dur, reduced, wait: ms => new Promise(resolve => setTimeout(resolve, dur(ms))) };
+}
+
+/* アニメーションの終了を待つ。cancel されても例外にしない */
+const settle = animation => animation.finished.catch(() => {});
+
+
 /* 流れる文字+シークの共通実装。vertical で横（右→左）と縦（下→上）を切り替える。
    映像と重ねない・行は固定・投稿や重なり回避は作らない（docs/adr/0008, 0013）。
    再生・シークの操作は withSeek に任せ、ここでは文字の配置と動きだけを作る */
@@ -356,26 +369,26 @@ export const MOTIONS = [
           <h3>詳細</h3>
           <div class="hero"></div><div class="row"></div><div class="row"></div>
         </div>`;
-      const b = stage.querySelector('.screen.b');
-      b.style.clipPath = `circle(0% at ${origin})`;
-      const wait = ms => new Promise(r => setTimeout(r, ctx.dur(ms)));
+      const next = stage.querySelector('.screen.b');
+      next.style.clipPath = `circle(0% at ${origin})`;
+      const { wait } = ctx;
       const run = async () => {
-        let a;
+        let anim;
         if (ctx.reduced()) {
-          b.style.clipPath = 'none';
-          a = b.animate([{ opacity: 0 }, { opacity: 1 }],
+          next.style.clipPath = 'none';
+          anim = next.animate([{ opacity: 0 }, { opacity: 1 }],
                         { duration: ctx.dur(300), fill: 'forwards' });
         } else {
-          a = b.animate(
+          anim = next.animate(
             [{ clipPath: `circle(0% at ${origin})` },
              { clipPath: `circle(150% at ${origin})` }],
             { duration: ctx.dur(700), easing: 'cubic-bezier(.65, 0, .35, 1)', fill: 'forwards' }
           );
         }
-        await a.finished;
+        await anim.finished;
         await wait(700);   // 表示したまましばらく見せる
-        a.cancel();
-        b.style.clipPath = `circle(0% at ${origin})`;
+        anim.cancel();
+        next.style.clipPath = `circle(0% at ${origin})`;
       };
       return { run };
     },
@@ -563,7 +576,7 @@ range.addEventListener('change', () => {
           <div class="chat-frame" aria-live="polite"></div>
         </div>`;
       const frame = stage.querySelector('.chat-frame');
-      const wait = ms => new Promise(r => setTimeout(r, ctx.dur(ms)));
+      const { wait } = ctx;
       let token = 0;
 
       // 吹き出しを1つ足す。押し上げは「足す前後の位置の差」から作る（FLIP）
@@ -671,8 +684,7 @@ range.addEventListener('change', () => {
           <div class="ntf-row"></div><div class="ntf-row"></div><div class="ntf-row"></div><div class="ntf-row"></div>
         </div>`;
       const root = stage.querySelector('.ntf');
-      const wait = ms => new Promise(r => setTimeout(r, ctx.dur(ms)));
-      const finish = a => a.finished.catch(() => {});
+      const { wait } = ctx;
       let token = 0;
 
       const run = async () => {
@@ -688,14 +700,14 @@ range.addEventListener('change', () => {
         const enter = reduced
           ? [{ opacity: 0 }, { opacity: 1 }]
           : [{ transform: OFF }, { transform: 'translateY(0)' }];
-        await finish(toast.animate(enter, { duration: ctx.dur(reduced ? 200 : IN), easing: reduced ? 'linear' : 'cubic-bezier(.2, 0, 0, 1)', fill: 'backwards' }));
+        await settle(toast.animate(enter, { duration: ctx.dur(reduced ? 200 : IN), easing: reduced ? 'linear' : 'cubic-bezier(.2, 0, 0, 1)', fill: 'backwards' }));
         // 押されるか、一定時間たつまで見せる
         await Promise.race([wait(HOLD), new Promise(r => toast.addEventListener('click', r, { once: true }))]);
         if (my !== token || !root.isConnected) return;
         const leave = reduced
           ? [{ opacity: 1 }, { opacity: 0 }]
           : [{ transform: 'translateY(0)' }, { transform: OFF }];
-        await finish(toast.animate(leave, { duration: ctx.dur(reduced ? 200 : OUT), easing: reduced ? 'linear' : 'cubic-bezier(.4, 0, 1, 1)', fill: 'forwards' }));
+        await settle(toast.animate(leave, { duration: ctx.dur(reduced ? 200 : OUT), easing: reduced ? 'linear' : 'cubic-bezier(.4, 0, 1, 1)', fill: 'forwards' }));
         toast.remove();
       };
       return { run };
@@ -758,8 +770,7 @@ toast.remove();`,
           <div class="ntf-row"></div><div class="ntf-row"></div><div class="ntf-row"></div><div class="ntf-row"></div>
         </div>`;
       const root = stage.querySelector('.ntf');
-      const wait = ms => new Promise(r => setTimeout(r, ctx.dur(ms)));
-      const finish = a => a.finished.catch(() => {});
+      const { wait } = ctx;
       let token = 0;
 
       const run = async () => {
@@ -774,13 +785,13 @@ toast.remove();`,
         const enter = reduced
           ? [{ opacity: 0 }, { opacity: 1 }]
           : [{ transform: 'translateY(calc(-100% - 10px))' }, { transform: 'translateY(0)' }];
-        await finish(banner.animate(enter, { duration: ctx.dur(reduced ? 200 : IN), easing: reduced ? 'linear' : 'cubic-bezier(.22, 1.2, .36, 1)', fill: 'backwards' }));
+        await settle(banner.animate(enter, { duration: ctx.dur(reduced ? 200 : IN), easing: reduced ? 'linear' : 'cubic-bezier(.22, 1.2, .36, 1)', fill: 'backwards' }));
         await wait(HOLD);
         if (my !== token || !root.isConnected) return;
         const leave = reduced
           ? [{ opacity: 1 }, { opacity: 0 }]
           : [{ transform: 'translateY(0)' }, { transform: 'translateY(calc(-100% - 10px))' }];
-        await finish(banner.animate(leave, { duration: ctx.dur(reduced ? 200 : OUT), easing: reduced ? 'linear' : 'cubic-bezier(.4, 0, 1, 1)', fill: 'forwards' }));
+        await settle(banner.animate(leave, { duration: ctx.dur(reduced ? 200 : OUT), easing: reduced ? 'linear' : 'cubic-bezier(.4, 0, 1, 1)', fill: 'forwards' }));
         banner.remove();
       };
       return { run };
@@ -845,7 +856,7 @@ banner.remove();`,
         </div>`;
       const root = stage.querySelector('.ntf');
       const badge = stage.querySelector('.ntf-badge');
-      const wait = ms => new Promise(r => setTimeout(r, ctx.dur(ms)));
+      const { wait } = ctx;
       let token = 0;
 
       const bump = n => {
@@ -928,11 +939,11 @@ banner.remove();`,
 
       stage.innerHTML = `
         <div class="shelf">
-          ${LEVELS.map(([a, b]) => `
+          ${LEVELS.map(([from, to]) => `
           <div class="shelf-level">
-            <div class="shelf-row">${BOOKS.slice(a, b).map((k, j) => `
-              <button class="spine" type="button" data-i="${a + j}" aria-haspopup="dialog" aria-label="${k.title}（${k.author}）を開く"
-                style="--c:${k.color};--h:${k.h}px"><span>${k.title}</span></button>`).join('')}
+            <div class="shelf-row">${BOOKS.slice(from, to).map((item, j) => `
+              <button class="spine" type="button" data-i="${from + j}" aria-haspopup="dialog" aria-label="${item.title}（${item.author}）を開く"
+                style="--c:${item.color};--h:${item.h}px"><span>${item.title}</span></button>`).join('')}
             </div>
             <div class="shelf-board"></div>
           </div>`).join('')}
@@ -959,23 +970,23 @@ banner.remove();`,
       const front = stage.querySelector('.book-front');
       const face = stage.querySelector('.book-spine-face');
       const page = stage.querySelector('.book-page');
-      const wait = ms => new Promise(r => setTimeout(r, ctx.dur(ms)));
+      const { wait } = ctx;
       let current = -1;     // 開いている（または開こうとしている）本
       let busy = false;     // 開閉のアニメーション中。その間の操作は受け付けない
       let token = 0;
 
       const fill = i => {
-        const k = BOOKS[i];
-        book.style.setProperty('--c', k.color);
-        book.style.setProperty('--k', BOOK_H / k.h);   // 背表紙の面を、棚の背表紙と同じ大きさにそろえる倍率
-        face.innerHTML = `<span class="spine-art" style="--c:${k.color};--h:${k.h}px"><span>${k.title}</span></span>`;
-        cover.innerHTML = `<span class="cover-title">${k.title}</span><span class="cover-author">${k.author}</span>`;
+        const info = BOOKS[i];
+        book.style.setProperty('--c', info.color);
+        book.style.setProperty('--k', BOOK_H / info.h);   // 背表紙の面を、棚の背表紙と同じ大きさにそろえる倍率
+        face.innerHTML = `<span class="spine-art" style="--c:${info.color};--h:${info.h}px"><span>${info.title}</span></span>`;
+        cover.innerHTML = `<span class="cover-title">${info.title}</span><span class="cover-author">${info.author}</span>`;
         page.innerHTML = `
-          <div class="reveal page-head"><h4>${k.title}</h4><span>${k.author}</span></div>
-          ${k.ch.map((c, n) => `<div class="reveal chap"><b>${n + 1}</b><span>${c}</span></div>`).join('')}
-          <p class="reveal page-note">${k.note}</p>`;
+          <div class="reveal page-head"><h4>${info.title}</h4><span>${info.author}</span></div>
+          ${info.ch.map((c, n) => `<div class="reveal chap"><b>${n + 1}</b><span>${c}</span></div>`).join('')}
+          <p class="reveal page-note">${info.note}</p>`;
       };
-      const a = (el, frames, duration, delay, easing) =>
+      const anim = (el, frames, duration, delay, easing) =>
         el.animate(frames, { duration: ctx.dur(duration), delay: ctx.dur(delay), easing, fill: 'both' });
       // 背表紙に重なる姿勢。本の左辺を軸に、背表紙の面が棚の背表紙と同じ位置・大きさになる移動と拡縮（FLIP）。
       // 測るのは変形がかかっていないとき（アニメーションの開始前）
@@ -1005,17 +1016,17 @@ banner.remove();`,
         let anims;
         if (reduced) {
           // 動きを減らす: 開いた状態（表紙なし・中身あり）を、オーバーレイごとフェードで表示する。不透明度だけ
-          anims = [a(overlay, [{ opacity: 0 }, { opacity: 1 }], 250, 0, 'linear')];
+          anims = [anim(overlay, [{ opacity: 0 }, { opacity: 1 }], 250, 0, 'linear')];
         } else {
           anims = [
-            a(bg, [{ opacity: 0 }, { opacity: 1 }], 250, 0, LIFT),
-            a(closeBtn, [{ opacity: 0 }, { opacity: 1 }], 250, 0, LIFT),
+            anim(bg, [{ opacity: 0 }, { opacity: 1 }], 250, 0, LIFT),
+            anim(closeBtn, [{ opacity: 0 }, { opacity: 1 }], 250, 0, LIFT),
             // 背表紙の面を向いた姿勢から、縦軸で回りながら持ち上がり、表紙の面が正面に来る
-            a(book, [{ transform: poseOf(i) }, { transform: 'none' }], 500, 0, INOUT),
-            a(front, [{ transform: 'rotateY(90deg)', visibility: 'hidden' }, { transform: 'rotateY(0deg)', visibility: 'visible' }], 500, 0, INOUT),
-            a(face, [{ transform: 'rotateY(0deg)', visibility: 'visible' }, { transform: 'rotateY(-90deg)', visibility: 'hidden' }], 500, 0, INOUT),   // 回り終えたら消す（真横の細い線を残さない）
-            a(cover, [{ transform: 'rotateY(0deg)' }, { transform: 'rotateY(-100deg)' }], 600, 550, INOUT),
-            ...items.map((el, n) => a(el, [{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'none' }], 300, 750 + n * 80, LIFT)),
+            anim(book, [{ transform: poseOf(i) }, { transform: 'none' }], 500, 0, INOUT),
+            anim(front, [{ transform: 'rotateY(90deg)', visibility: 'hidden' }, { transform: 'rotateY(0deg)', visibility: 'visible' }], 500, 0, INOUT),
+            anim(face, [{ transform: 'rotateY(0deg)', visibility: 'visible' }, { transform: 'rotateY(-90deg)', visibility: 'hidden' }], 500, 0, INOUT),   // 回り終えたら消す（真横の細い線を残さない）
+            anim(cover, [{ transform: 'rotateY(0deg)' }, { transform: 'rotateY(-100deg)' }], 600, 550, INOUT),
+            ...items.map((el, n) => anim(el, [{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'none' }], 300, 750 + n * 80, LIFT)),
           ];
         }
         const ok = await finish(anims);
@@ -1031,17 +1042,17 @@ banner.remove();`,
         const items = [...page.querySelectorAll('.reveal')];
         let anims;
         if (reduced) {
-          anims = [a(overlay, [{ opacity: 1 }, { opacity: 0 }], 250, 0, 'linear')];
+          anims = [anim(overlay, [{ opacity: 1 }, { opacity: 0 }], 250, 0, 'linear')];
         } else {
           anims = [
-            ...items.map(el => a(el, [{ opacity: 1 }, { opacity: 0 }], 150, 0, LIFT)),
-            a(cover, [{ transform: 'rotateY(-100deg)' }, { transform: 'rotateY(0deg)' }], 400, 100, INOUT),
+            ...items.map(el => anim(el, [{ opacity: 1 }, { opacity: 0 }], 150, 0, LIFT)),
+            anim(cover, [{ transform: 'rotateY(-100deg)' }, { transform: 'rotateY(0deg)' }], 400, 100, INOUT),
             // 縦軸で回りながら棚へ戻り、背表紙の面が棚の背表紙に重なったところで終わる
-            a(book, [{ transform: 'none' }, { transform: poseOf(i) }], 500, 500, INOUT),
-            a(front, [{ transform: 'rotateY(0deg)', visibility: 'visible' }, { transform: 'rotateY(90deg)', visibility: 'hidden' }], 500, 500, INOUT),
-            a(face, [{ transform: 'rotateY(-90deg)', visibility: 'hidden' }, { transform: 'rotateY(0deg)', visibility: 'visible' }], 500, 500, INOUT),
-            a(bg, [{ opacity: 1 }, { opacity: 0 }], 300, 700, LIFT),
-            a(closeBtn, [{ opacity: 1 }, { opacity: 0 }], 300, 700, LIFT),
+            anim(book, [{ transform: 'none' }, { transform: poseOf(i) }], 500, 500, INOUT),
+            anim(front, [{ transform: 'rotateY(0deg)', visibility: 'visible' }, { transform: 'rotateY(90deg)', visibility: 'hidden' }], 500, 500, INOUT),
+            anim(face, [{ transform: 'rotateY(-90deg)', visibility: 'hidden' }, { transform: 'rotateY(0deg)', visibility: 'visible' }], 500, 500, INOUT),
+            anim(bg, [{ opacity: 1 }, { opacity: 0 }], 300, 700, LIFT),
+            anim(closeBtn, [{ opacity: 1 }, { opacity: 0 }], 300, 700, LIFT),
           ];
         }
         const ok = await finish(anims);
@@ -1264,21 +1275,21 @@ async function closeIt(spine, bookHeight) {
       const drop = stage.querySelector('.card3d');     // 上から降りる（移動と不透明度）
       const body = stage.querySelector('.card-body');  // 縦軸で回る
       const front = stage.querySelector('.card-front');
-      const wait = ms => new Promise(r => setTimeout(r, ctx.dur(ms)));
+      const { wait } = ctx;
       let current = -1;     // 開いている（または開こうとしている）カード
       let busy = false;     // 開閉のアニメーション中。その間の操作は受け付けない
       let token = 0;
 
       const fill = i => {
-        const k = CARDS[i];
-        front.style.setProperty('--c', k.color);
+        const info = CARDS[i];
+        front.style.setProperty('--c', info.color);
         front.innerHTML = `
-          <span class="card-no">${k.no}</span>
-          <svg class="card-icon" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[k.icon]}</svg>
-          <span class="card-name">${k.name}</span>
-          <span class="card-note">${k.note}</span>`;
+          <span class="card-no">${info.no}</span>
+          <svg class="card-icon" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[info.icon]}</svg>
+          <span class="card-name">${info.name}</span>
+          <span class="card-note">${info.note}</span>`;
       };
-      const a = (el, frames, duration, delay, easing) =>
+      const anim = (el, frames, duration, delay, easing) =>
         el.animate(frames, { duration: ctx.dur(duration), delay: ctx.dur(delay), easing, fill: 'both' });
       const finish = async anims => {
         try { await Promise.all(anims.map(x => x.finished)); } catch { return false; }   // reset で中断された
@@ -1295,21 +1306,21 @@ async function closeIt(spine, bookHeight) {
         // 1. 選んだ伏せカードが、少し右へ滑りながらフェードアウトする（動きを減らす: 不透明度だけ）
         cards[i].classList.add('is-out');   // 消えたあとも非表示のままにする。最終状態は class に持たせる
         const out = reduced
-          ? a(cards[i], [{ opacity: 1 }, { opacity: 0 }], 200, 0, 'linear')
-          : a(cards[i], [{ opacity: 1, transform: 'translateX(0)' }, { opacity: 0, transform: `translateX(${SLIDE}px)` }], 300, 0, LIFT);
+          ? anim(cards[i], [{ opacity: 1 }, { opacity: 0 }], 200, 0, 'linear')
+          : anim(cards[i], [{ opacity: 1, transform: 'translateX(0)' }, { opacity: 0, transform: `translateX(${SLIDE}px)` }], 300, 0, LIFT);
         if (!(await finish([out]))) return;
         // 2. 消えたあとに、オーバーレイの中央へ出す
         overlay.classList.add('is-open');
         if (focus) closeBtn.focus({ preventScroll: true });
         const anims = reduced
-          ? [a(overlay, [{ opacity: 0 }, { opacity: 1 }], 250, 0, 'linear')]
+          ? [anim(overlay, [{ opacity: 0 }, { opacity: 1 }], 250, 0, 'linear')]
           : [
-              a(bg, [{ opacity: 0 }, { opacity: 1 }], 250, 0, LIFT),
-              a(closeBtn, [{ opacity: 0 }, { opacity: 1 }], 250, 0, LIFT),
+              anim(bg, [{ opacity: 0 }, { opacity: 1 }], 250, 0, LIFT),
+              anim(closeBtn, [{ opacity: 0 }, { opacity: 1 }], 250, 0, LIFT),
               // 上から降りる。見え始めは早く、位置はゆっくり落ち着く
-              a(drop, [{ transform: 'translateY(-180px)', opacity: 0 }, { opacity: 1, offset: .3 }, { transform: 'none', opacity: 1 }], 1000, 0, LIFT),
+              anim(drop, [{ transform: 'translateY(-180px)', opacity: 0 }, { opacity: 1, offset: .3 }, { transform: 'none', opacity: 1 }], 1000, 0, LIFT),
               // 縦軸で2回転（720°）。降りきったあともしばらく回り、ゆっくり止まる
-              a(body, [{ transform: 'rotateY(0deg)' }, { transform: 'rotateY(720deg)' }], 1800, 0, SPIN),
+              anim(body, [{ transform: 'rotateY(0deg)' }, { transform: 'rotateY(720deg)' }], 1800, 0, SPIN),
             ];
         if (!(await finish(anims))) return;
         busy = false;
@@ -1321,11 +1332,11 @@ async function closeIt(spine, bookHeight) {
         const i = current;
         const reduced = ctx.reduced();
         const anims = reduced
-          ? [a(overlay, [{ opacity: 1 }, { opacity: 0 }], 250, 0, 'linear')]
+          ? [anim(overlay, [{ opacity: 1 }, { opacity: 0 }], 250, 0, 'linear')]
           : [
-              a(drop, [{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(-24px)' }], 300, 0, LIFT),
-              a(closeBtn, [{ opacity: 1 }, { opacity: 0 }], 200, 0, LIFT),
-              a(bg, [{ opacity: 1 }, { opacity: 0 }], 300, 100, LIFT),
+              anim(drop, [{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(-24px)' }], 300, 0, LIFT),
+              anim(closeBtn, [{ opacity: 1 }, { opacity: 0 }], 200, 0, LIFT),
+              anim(bg, [{ opacity: 1 }, { opacity: 0 }], 300, 100, LIFT),
             ];
         if (!(await finish(anims))) return;
         overlay.classList.remove('is-open');   // 終わってから外し、アニメーションは cancel 済み
@@ -1334,8 +1345,8 @@ async function closeIt(spine, bookHeight) {
         grid.inert = false;
         current = -1;
         const back = reduced
-          ? a(cards[i], [{ opacity: 0 }, { opacity: 1 }], 200, 0, 'linear')
-          : a(cards[i], [{ opacity: 0, transform: `translateX(${SLIDE}px)` }, { opacity: 1, transform: 'none' }], 300, 0, LIFT);
+          ? anim(cards[i], [{ opacity: 0 }, { opacity: 1 }], 200, 0, 'linear')
+          : anim(cards[i], [{ opacity: 0, transform: `translateX(${SLIDE}px)` }, { opacity: 1, transform: 'none' }], 300, 0, LIFT);
         if (!(await finish([back]))) return;
         busy = false;
         if (focus) cards[i].focus({ preventScroll: true });
@@ -1583,7 +1594,6 @@ range.addEventListener('input', () => {
       const board = stage.querySelector('.tx-board');
       const track = stage.querySelector('.tx-track');
       const still = stage.querySelector('.tx-static');
-      const finish = a => a.finished.catch(() => {});
       let token = 0;
 
       const run = async () => {
@@ -1593,7 +1603,7 @@ range.addEventListener('input', () => {
         still.hidden = !reduced;
         if (!reduced) {
           // 同じ文を2つ並べているので、半分（-50%）ずらすと最初と同じ見た目に戻る
-          await finish(track.animate([{ transform: 'translateX(0)' }, { transform: 'translateX(-50%)' }],
+          await settle(track.animate([{ transform: 'translateX(0)' }, { transform: 'translateX(-50%)' }],
             { duration: ctx.dur(LOOP), easing: 'linear' }));
           return;
         }
@@ -1601,7 +1611,7 @@ range.addEventListener('input', () => {
         for (const text of ITEMS) {
           if (my !== token || !board.isConnected) return;
           still.textContent = text;
-          await finish(still.animate(
+          await settle(still.animate(
             [{ opacity: 0 }, { opacity: 1, offset: .1 }, { opacity: 1, offset: .9 }, { opacity: 0 }],
             { duration: ctx.dur(LOOP / ITEMS.length), easing: 'linear', fill: 'both' }));
         }
@@ -1671,24 +1681,24 @@ track.animate(
         const anims = rows.map((el, i) => {
           const on = i * LINE, off = (i + 1) * LINE;
           const fade = reduced ? 0 : MOVE;   // 動きを減らす: 明るさは瞬時に切り替える
-          const k = [{ opacity: DIM, offset: 0 }];
-          if (on > 0) k.push({ opacity: DIM, offset: at(on), easing: EASE });
-          k.push({ opacity: 1, offset: at(on + fade) });
-          if (off < TOTAL) k.push({ opacity: 1, offset: at(off), easing: EASE }, { opacity: DIM, offset: at(off + fade) });
-          k.push({ opacity: k[k.length - 1].opacity, offset: 1 });
-          return el.animate(k, opt);
+          const keyframes = [{ opacity: DIM, offset: 0 }];
+          if (on > 0) keyframes.push({ opacity: DIM, offset: at(on), easing: EASE });
+          keyframes.push({ opacity: 1, offset: at(on + fade) });
+          if (off < TOTAL) keyframes.push({ opacity: 1, offset: at(off), easing: EASE }, { opacity: DIM, offset: at(off + fade) });
+          keyframes.push({ opacity: keyframes[keyframes.length - 1].opacity, offset: 1 });
+          return el.animate(keyframes, opt);
         });
         if (!reduced) {
           // 一覧のスクロール: 今の行の中心を枠の中心に合わせる。行が変わる時だけ MOVE かけて動く
           const y = el => frame.clientHeight / 2 - (el.offsetTop + el.offsetHeight / 2);
-          const k = [{ transform: `translateY(${y(rows[0])}px)`, offset: 0 }];
+          const keyframes = [{ transform: `translateY(${y(rows[0])}px)`, offset: 0 }];
           rows.forEach((el, i) => {
             if (i === 0) return;
-            k.push({ transform: `translateY(${y(rows[i - 1])}px)`, offset: at(i * LINE), easing: EASE },
+            keyframes.push({ transform: `translateY(${y(rows[i - 1])}px)`, offset: at(i * LINE), easing: EASE },
                    { transform: `translateY(${y(el)}px)`, offset: at(i * LINE + MOVE) });
           });
-          k.push({ transform: `translateY(${y(rows[rows.length - 1])}px)`, offset: 1 });
-          anims.push(list.animate(k, opt));
+          keyframes.push({ transform: `translateY(${y(rows[rows.length - 1])}px)`, offset: 1 });
+          anims.push(list.animate(keyframes, opt));
         }
         return anims;
       });

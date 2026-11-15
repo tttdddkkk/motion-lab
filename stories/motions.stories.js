@@ -1,5 +1,5 @@
 import { expect } from 'storybook/test';
-import { MOTIONS } from '../motions/motions.js';
+import { MOTIONS, makeCtx } from '../motions/motions.js';
 
 export default {
   title: 'Motions',
@@ -11,8 +11,24 @@ export default {
   args: { rate: 1, reduced: false, autoplay: true },
 };
 
+/* ---- 検証で使う共通の道具 ---- */
+
 const frame = () => new Promise(r => requestAnimationFrame(() => r()));
 
+/* 検証用の ctx。時間を 1/4 にして、再生を速く終わらせる */
+const fastCtx = reduced => makeCtx({ rate: () => 4, reduced: () => reduced });
+
+/* stage の中のアニメーションをすべて止める（自動再生や前の検証の残りを消す） */
+const cancelAll = stage => stage.getAnimations({ subtree: true }).forEach(a => a.cancel());
+
+/* シークバー（input[type=range]）を、ユーザーがドラッグしたときと同じ順で操作する。value は 0〜1000 */
+const seekTo = (range, value) => {
+  range.dispatchEvent(new PointerEvent('pointerdown'));
+  range.value = String(value);
+  range.dispatchEvent(new Event('input'));
+};
+
+/* setup の呼び出しをスパイして、animate() に渡されたキーフレームを集める */
 function spyAnimate() {
   const original = Element.prototype.animate;
   const keyframes = [];
@@ -23,11 +39,205 @@ function spyAnimate() {
   return { keyframes, restore: () => { Element.prototype.animate = original; } };
 }
 
+/* ---- すべてのモーションに共通の検証 ---- */
+
+/* 再生が完了し、後片付けされる。動きを減らす版は、移動・変形を使わない */
+async function checkPlayback({ motion, stage, step }, reduced) {
+  await step(reduced ? '動きを減らす: 再生が完了し、移動・変形を使わない' : '通常: 再生が完了し、後片付けされる', async () => {
+    const spy = spyAnimate();
+    try {
+      await motion.setup(stage, fastCtx(reduced)).run();
+    } finally {
+      spy.restore();
+    }
+    await expect(spy.keyframes.length).toBeGreaterThan(0);
+    await expect(stage.querySelector('.ripple')).toBeNull();
+    const running = stage.getAnimations({ subtree: true }).filter(a => a.playState === 'running');
+    await expect(running).toHaveLength(0);
+    if (reduced) {
+      const props = spy.keyframes.flat().flatMap(f => Object.keys(f));
+      await expect(props).not.toContain('transform');
+      await expect(props).not.toContain('clipPath');
+    }
+  });
+}
+
+/* シークバーを持つモーションの共通の検証 */
+async function checkSeekBar({ motion, stage, step }) {
+  await step('再生前でも、文字が時刻0の位置に配置されている', async () => {
+    motion.setup(stage, fastCtx(false));
+    await frame();
+    // 時刻で位置が決まる要素（流れる文字、または data-seek-probe="transform" を付けた要素）。
+    // 見え方（opacity）だけが変わるもの（字幕）は位置を持たないので、ここでは調べない
+    const transforms = [...stage.querySelectorAll('.flow-item, [data-seek-probe="transform"]')].map(el => getComputedStyle(el).transform);
+    await expect(transforms).not.toContain('none');
+    cancelAll(stage);
+  });
+
+  await step('シークバーを動かすと、表示が時刻に合わせて変わる', async () => {
+    motion.setup(stage, fastCtx(false)).run().catch(() => {});
+    await frame();
+    // setup で中身が作り直されるため、要素は取り直す
+    const range = stage.querySelector('input[type="range"]');
+    const item = stage.querySelector('.flow-item, [data-seek-probe]');
+    const stateAt = value => {
+      seekTo(range, value);
+      const cs = getComputedStyle(item);
+      return `${cs.transform} / ${cs.opacity}`;   // 位置か見え方のどちらかが時刻で変わる
+    };
+    const early = stateAt(50);
+    const later = stateAt(250);
+    await expect(later).not.toBe(early);
+    await expect(stateAt(50)).toBe(early);
+    cancelAll(stage);
+  });
+}
+
+/* ---- モーション固有の検証（id → 検証。共通の検証のあとに実行する） ---- */
+
+const EXTRA_STEPS = {
+  'flow-seek-vertical': async ({ motion, stage, step }) => {
+    await step('縦: 折り返した文字が重ならず、終了時には枠の外へ出きる', async () => {
+      motion.setup(stage, fastCtx(false)).run().catch(() => {});
+      await frame();
+      const range = stage.querySelector('input[type="range"]');
+      const frameEl = stage.querySelector('.flow-frame');
+      const items = [...stage.querySelectorAll('.flow-item')];
+      // 折り返して2行以上になる文字がある（デモの前提）
+      await expect(Math.max(...items.map(el => el.getBoundingClientRect().height))).toBeGreaterThan(30);
+      const area = frameEl.getBoundingClientRect();
+      for (let v = 0; v <= 1000; v += 20) {
+        seekTo(range, v);
+        const shown = items.map(el => el.getBoundingClientRect())
+          .filter(r => r.bottom > area.top && r.top < area.bottom);
+        // 枠の右端からはみ出さない
+        for (const r of shown) await expect(r.right).toBeLessThanOrEqual(area.right + 1);
+        for (let i = 0; i < shown.length; i++) for (let j = i + 1; j < shown.length; j++) {
+          const a = shown[i], b = shown[j];
+          const overlap = a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+          await expect(overlap).toBe(false);
+        }
+      }
+      // 速さ: 流れている途中の文字は、すべて同じ距離だけ動く（折り返した文字も同じ速さ）
+      const ty = el => new DOMMatrixReadOnly(getComputedStyle(el).transform).m42;
+      seekTo(range, 0);
+      const start = Math.max(...items.map(ty));   // 枠の下（出る前の位置）
+      seekTo(range, 1000);
+      const end = Math.min(...items.map(ty));     // 枠の上（出きった位置）
+      const between = y => y < start - 0.5 && y > end + 0.5;
+      for (const [from, to] of [[300, 330], [500, 530]]) {
+        seekTo(range, from);
+        const before = items.map(ty);
+        seekTo(range, to);
+        const after = items.map(ty);
+        const moving = items.map((el, i) => after[i] - before[i]).filter((d, i) => between(before[i]) && between(after[i]));
+        await expect(moving.length).toBeGreaterThan(1);
+        for (const d of moving) await expect(Math.abs(d - moving[0])).toBeLessThan(0.5);
+      }
+      // 間隔: 枠の中に並んでいる文字どうしの見た目の隙間がそろっている（2行の文字のあとも同じ）
+      let checkedTwoLine = false;
+      for (let v = 200; v <= 700; v += 50) {
+        seekTo(range, v);
+        const rows = items.map(el => el.getBoundingClientRect())
+          .filter(r => r.top >= area.top && r.bottom <= area.bottom)
+          .sort((p, q) => p.top - q.top);
+        const gaps = rows.slice(1).map((r, i) => r.top - rows[i].bottom);
+        if (rows.slice(0, -1).some(r => r.height > 30)) checkedTwoLine = true;
+        for (const g of gaps) await expect(Math.abs(g - gaps[0])).toBeLessThan(1);
+      }
+      await expect(checkedTwoLine).toBe(true);   // 2行の文字のあとの隙間も確かめた
+      // 終了時: すべての文字が枠の上に出きっている
+      seekTo(range, 1000);
+      for (const el of items) await expect(el.getBoundingClientRect().bottom).toBeLessThanOrEqual(area.top + 1);
+      seekTo(range, 0);
+      cancelAll(stage);
+    });
+
+    // 枠が十分高いときと、低いとき（位置を再利用する）の両方で、表示中の文字が重ならず枠に収まる
+    for (const height of [null, 290, 250]) {
+      await step(`縦・動きを減らす${height ? `（枠が低い: ${height}px）` : ''}: 表示中の文字が重ならず、枠に収まる`, async () => {
+        const root = stage.parentElement;
+        if (height) root.style.height = `${height}px`;
+        try {
+          motion.setup(stage, fastCtx(true)).run().catch(() => {});
+          await frame();
+          const range = stage.querySelector('input[type="range"]');
+          const area = stage.querySelector('.flow-frame').getBoundingClientRect();
+          const items = [...stage.querySelectorAll('.flow-item')];
+          let maxShown = 0;
+          for (let v = 0; v <= 1000; v += 20) {
+            seekTo(range, v);
+            const shown = items.filter(el => Number(getComputedStyle(el).opacity) > 0.01).map(el => el.getBoundingClientRect());
+            maxShown = Math.max(maxShown, shown.length);
+            for (const r of shown) {
+              await expect(r.top).toBeGreaterThanOrEqual(area.top);
+              await expect(r.bottom).toBeLessThanOrEqual(area.bottom + 1);
+            }
+            for (let i = 0; i < shown.length; i++) for (let j = i + 1; j < shown.length; j++) {
+              const a = shown[i], b = shown[j];
+              await expect(a.top < b.bottom && b.top < a.bottom).toBe(false);
+            }
+          }
+          await expect(maxShown).toBeGreaterThan(3);   // 3件までの固定位置ではない
+          if (!height) {
+            // 枠に空きがあるときは、全件が専用の位置（入れ替わらない）
+            await expect(new Set(items.map(el => el.offsetTop)).size).toBe(items.length);
+          }
+          cancelAll(stage);
+        } finally {
+          root.style.height = '';
+        }
+      });
+    }
+  },
+
+  'chat-pop': async ({ motion, stage, step }) => {
+    await step('チャット: 吹き出しが左にそろい、新しいものが最下部に積み上がる', async () => {
+      motion.setup(stage, fastCtx(false)).run().catch(() => {});
+      await new Promise(r => setTimeout(r, 900));
+      const area = stage.querySelector('.chat-frame').getBoundingClientRect();
+      const bubbles = [...stage.querySelectorAll('.chat-bubble')];
+      await expect(bubbles.length).toBeGreaterThanOrEqual(3);
+      const rects = bubbles.map(el => el.getBoundingClientRect());
+      // 枠の外（右・下）にはみ出さず、左端がそろっている
+      for (const r of rects) {
+        await expect(r.right).toBeLessThanOrEqual(area.right + 1);
+        await expect(r.bottom).toBeLessThanOrEqual(area.bottom + 1);
+      }
+      await expect(new Set(bubbles.map(el => el.offsetLeft)).size).toBe(1);
+      // 後に出たものほど下にある（吹き出し同士は重ならない）
+      for (let i = 1; i < bubbles.length; i++) {
+        await expect(bubbles[i].offsetTop).toBeGreaterThanOrEqual(bubbles[i - 1].offsetTop + bubbles[i - 1].offsetHeight);
+      }
+      cancelAll(stage);
+    });
+  },
+
+  'ticker': async ({ motion, stage, step }) => {
+    await step('ティッカー・動きを減らす: 流す用の文字列は隠れ、1件ずつの文字だけが見える', async () => {
+      motion.setup(stage, fastCtx(true)).run().catch(() => {});
+      await frame();
+      await expect(getComputedStyle(stage.querySelector('.tx-track')).display).toBe('none');
+      await expect(getComputedStyle(stage.querySelector('.tx-static')).display).not.toBe('none');
+      cancelAll(stage);
+    });
+    await step('ティッカー・通常: 1件ずつの文字は隠れ、流す用の文字列が見える', async () => {
+      motion.setup(stage, fastCtx(false)).run().catch(() => {});
+      await frame();
+      await expect(getComputedStyle(stage.querySelector('.tx-track')).display).not.toBe('none');
+      await expect(getComputedStyle(stage.querySelector('.tx-static')).display).toBe('none');
+      cancelAll(stage);
+    });
+  },
+};
+
+/* ---- ストーリーの定義 ---- */
+
 function story(id) {
   const motion = MOTIONS.find(m => m.id === id);
   if (!motion) throw new Error(`MOTIONS に id "${id}" がない`);
   const mount = (stage, args) => {
-    const instance = motion.setup(stage, { dur: ms => ms / args.rate, reduced: () => args.reduced });
+    const instance = motion.setup(stage, makeCtx({ rate: () => args.rate, reduced: () => args.reduced }));
     if (args.autoplay) requestAnimationFrame(() => instance.run().catch(() => {}));
   };
   return {
@@ -44,209 +254,15 @@ function story(id) {
     },
     play: async ({ canvasElement, step, args }) => {
       const stage = canvasElement.querySelector('.stage');
+      const ctx = { motion, stage, step };
       await frame();
       // 自動再生ぶんを止めて、以降の検証に混ざらないようにする
-      stage.getAnimations({ subtree: true }).forEach(a => a.cancel());
+      cancelAll(stage);
 
-      for (const reduced of [false, true]) {
-        await step(reduced ? '動きを減らす: 再生が完了し、移動・変形を使わない' : '通常: 再生が完了し、後片付けされる', async () => {
-          const spy = spyAnimate();
-          let instance;
-          try {
-            instance = motion.setup(stage, { dur: ms => ms / 4, reduced: () => reduced });
-            await instance.run();
-          } finally {
-            spy.restore();
-          }
-          await expect(spy.keyframes.length).toBeGreaterThan(0);
-          await expect(stage.querySelector('.ripple')).toBeNull();
-          const running = stage.getAnimations({ subtree: true }).filter(a => a.playState === 'running');
-          await expect(running).toHaveLength(0);
-          if (reduced) {
-            const props = spy.keyframes.flat().flatMap(f => Object.keys(f));
-            await expect(props).not.toContain('transform');
-            await expect(props).not.toContain('clipPath');
-          }
-        });
-      }
-
-      if (stage.querySelector('input[type="range"]')) {
-        await step('再生前でも、文字が時刻0の位置に配置されている', async () => {
-          motion.setup(stage, { dur: ms => ms / 4, reduced: () => false });
-          await frame();
-          // 時刻で位置が決まる要素（流れる文字、または data-seek-probe="transform" を付けた要素）。
-          // 見え方（opacity）だけが変わるもの（字幕）は位置を持たないので、ここでは調べない
-          const transforms = [...stage.querySelectorAll('.flow-item, [data-seek-probe="transform"]')].map(el => getComputedStyle(el).transform);
-          await expect(transforms).not.toContain('none');
-          stage.getAnimations({ subtree: true }).forEach(a => a.cancel());
-        });
-
-        await step('シークバーを動かすと、表示が時刻に合わせて変わる', async () => {
-          motion.setup(stage, { dur: ms => ms / 4, reduced: () => false }).run().catch(() => {});
-          await frame();
-          // setup で中身が作り直されるため、要素は取り直す
-          const range = stage.querySelector('input[type="range"]');
-          const item = stage.querySelector('.flow-item, [data-seek-probe]');
-          const at = value => {
-            range.dispatchEvent(new PointerEvent('pointerdown'));
-            range.value = String(value);
-            range.dispatchEvent(new Event('input'));
-            const cs = getComputedStyle(item);
-            return `${cs.transform} / ${cs.opacity}`;   // 位置か見え方のどちらかが時刻で変わる
-          };
-          const early = at(50);
-          const later = at(250);
-          await expect(later).not.toBe(early);
-          await expect(at(50)).toBe(early);
-          stage.getAnimations({ subtree: true }).forEach(a => a.cancel());
-        });
-      }
-
-      if (stage.querySelector('.flow.is-vertical') || motion.id === 'flow-seek-vertical') {
-        await step('縦: 折り返した文字が重ならず、終了時には枠の外へ出きる', async () => {
-          motion.setup(stage, { dur: ms => ms / 4, reduced: () => false }).run().catch(() => {});
-          await frame();
-          const range = stage.querySelector('input[type="range"]');
-          const frameEl = stage.querySelector('.flow-frame');
-          const items = [...stage.querySelectorAll('.flow-item')];
-          const seekTo = value => {
-            range.dispatchEvent(new PointerEvent('pointerdown'));
-            range.value = String(value);
-            range.dispatchEvent(new Event('input'));
-          };
-          // 折り返して2行以上になる文字がある（デモの前提）
-          await expect(Math.max(...items.map(el => el.getBoundingClientRect().height))).toBeGreaterThan(30);
-          const area = frameEl.getBoundingClientRect();
-          for (let v = 0; v <= 1000; v += 20) {
-            seekTo(v);
-            const shown = items.map(el => el.getBoundingClientRect())
-              .filter(r => r.bottom > area.top && r.top < area.bottom);
-            // 枠の右端からはみ出さない
-            for (const r of shown) await expect(r.right).toBeLessThanOrEqual(area.right + 1);
-            for (let i = 0; i < shown.length; i++) for (let j = i + 1; j < shown.length; j++) {
-              const a = shown[i], b = shown[j];
-              const overlap = a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
-              await expect(overlap).toBe(false);
-            }
-          }
-          // 速さ: 流れている途中の文字は、すべて同じ距離だけ動く（折り返した文字も同じ速さ）
-          const ty = el => new DOMMatrixReadOnly(getComputedStyle(el).transform).m42;
-          seekTo(0);
-          const start = Math.max(...items.map(ty));   // 枠の下（出る前の位置）
-          seekTo(1000);
-          const end = Math.min(...items.map(ty));     // 枠の上（出きった位置）
-          const between = y => y < start - 0.5 && y > end + 0.5;
-          for (const [from, to] of [[300, 330], [500, 530]]) {
-            seekTo(from);
-            const a = items.map(ty);
-            seekTo(to);
-            const b = items.map(ty);
-            const moving = items.map((el, i) => b[i] - a[i]).filter((d, i) => between(a[i]) && between(b[i]));
-            await expect(moving.length).toBeGreaterThan(1);
-            for (const d of moving) await expect(Math.abs(d - moving[0])).toBeLessThan(0.5);
-          }
-          // 間隔: 枠の中に並んでいる文字どうしの見た目の隙間がそろっている（2行の文字のあとも同じ）
-          let checkedTwoLine = false;
-          for (let v = 200; v <= 700; v += 50) {
-            seekTo(v);
-            const rows = items.map(el => el.getBoundingClientRect())
-              .filter(r => r.top >= area.top && r.bottom <= area.bottom)
-              .sort((p, q) => p.top - q.top);
-            const gaps = rows.slice(1).map((r, i) => r.top - rows[i].bottom);
-            if (rows.slice(0, -1).some(r => r.height > 30)) checkedTwoLine = true;
-            for (const g of gaps) await expect(Math.abs(g - gaps[0])).toBeLessThan(1);
-          }
-          await expect(checkedTwoLine).toBe(true);   // 2行の文字のあとの隙間も確かめた
-          // 終了時: すべての文字が枠の上に出きっている
-          seekTo(1000);
-          for (const el of items) await expect(el.getBoundingClientRect().bottom).toBeLessThanOrEqual(area.top + 1);
-          seekTo(0);
-          stage.getAnimations({ subtree: true }).forEach(a => a.cancel());
-        });
-      }
-
-      if (motion.id === 'chat-pop') {
-        await step('チャット: 吹き出しが左にそろい、新しいものが最下部に積み上がる', async () => {
-          motion.setup(stage, { dur: ms => ms / 4, reduced: () => false }).run().catch(() => {});
-          await new Promise(r => setTimeout(r, 900));
-          const area = stage.querySelector('.chat-frame').getBoundingClientRect();
-          const bubbles = [...stage.querySelectorAll('.chat-bubble')];
-          await expect(bubbles.length).toBeGreaterThanOrEqual(3);
-          const rects = bubbles.map(el => el.getBoundingClientRect());
-          // 枠の外（右・下）にはみ出さず、左端がそろっている
-          for (const r of rects) {
-            await expect(r.right).toBeLessThanOrEqual(area.right + 1);
-            await expect(r.bottom).toBeLessThanOrEqual(area.bottom + 1);
-          }
-          await expect(new Set(bubbles.map(el => el.offsetLeft)).size).toBe(1);
-          // 後に出たものほど下にある（吹き出し同士は重ならない）
-          for (let i = 1; i < bubbles.length; i++) {
-            await expect(bubbles[i].offsetTop).toBeGreaterThanOrEqual(bubbles[i - 1].offsetTop + bubbles[i - 1].offsetHeight);
-          }
-          stage.getAnimations({ subtree: true }).forEach(a => a.cancel());
-        });
-      }
-
-      if (motion.id === 'flow-seek-vertical') {
-        // 枠が十分高いときと、低いとき（位置を再利用する）の両方で、表示中の文字が重ならず枠に収まる
-        for (const height of [null, 290, 250]) {
-          await step(`縦・動きを減らす${height ? `（枠が低い: ${height}px）` : ''}: 表示中の文字が重ならず、枠に収まる`, async () => {
-            const root = stage.parentElement;
-            if (height) root.style.height = `${height}px`;
-            try {
-              motion.setup(stage, { dur: ms => ms / 4, reduced: () => true }).run().catch(() => {});
-              await frame();
-              const range = stage.querySelector('input[type="range"]');
-              const area = stage.querySelector('.flow-frame').getBoundingClientRect();
-              const items = [...stage.querySelectorAll('.flow-item')];
-              const seekTo = value => {
-                range.dispatchEvent(new PointerEvent('pointerdown'));
-                range.value = String(value);
-                range.dispatchEvent(new Event('input'));
-              };
-              let maxShown = 0;
-              for (let v = 0; v <= 1000; v += 20) {
-                seekTo(v);
-                const shown = items.filter(el => Number(getComputedStyle(el).opacity) > 0.01).map(el => el.getBoundingClientRect());
-                maxShown = Math.max(maxShown, shown.length);
-                for (const r of shown) {
-                  await expect(r.top).toBeGreaterThanOrEqual(area.top);
-                  await expect(r.bottom).toBeLessThanOrEqual(area.bottom + 1);
-                }
-                for (let i = 0; i < shown.length; i++) for (let j = i + 1; j < shown.length; j++) {
-                  const a = shown[i], b = shown[j];
-                  await expect(a.top < b.bottom && b.top < a.bottom).toBe(false);
-                }
-              }
-              await expect(maxShown).toBeGreaterThan(3);   // 3件までの固定位置ではない
-              if (!height) {
-                // 枠に空きがあるときは、全件が専用の位置（入れ替わらない）
-                await expect(new Set(items.map(el => el.offsetTop)).size).toBe(items.length);
-              }
-              stage.getAnimations({ subtree: true }).forEach(a => a.cancel());
-            } finally {
-              root.style.height = '';
-            }
-          });
-        }
-      }
-
-      if (motion.id === 'ticker') {
-        await step('ティッカー・動きを減らす: 流す用の文字列は隠れ、1件ずつの文字だけが見える', async () => {
-          motion.setup(stage, { dur: ms => ms / 4, reduced: () => true }).run().catch(() => {});
-          await frame();
-          await expect(getComputedStyle(stage.querySelector('.tx-track')).display).toBe('none');
-          await expect(getComputedStyle(stage.querySelector('.tx-static')).display).not.toBe('none');
-          stage.getAnimations({ subtree: true }).forEach(a => a.cancel());
-        });
-        await step('ティッカー・通常: 1件ずつの文字は隠れ、流す用の文字列が見える', async () => {
-          motion.setup(stage, { dur: ms => ms / 4, reduced: () => false }).run().catch(() => {});
-          await frame();
-          await expect(getComputedStyle(stage.querySelector('.tx-track')).display).not.toBe('none');
-          await expect(getComputedStyle(stage.querySelector('.tx-static')).display).toBe('none');
-          stage.getAnimations({ subtree: true }).forEach(a => a.cancel());
-        });
-      }
+      await checkPlayback(ctx, false);
+      await checkPlayback(ctx, true);
+      if (stage.querySelector('input[type="range"]')) await checkSeekBar(ctx);
+      await EXTRA_STEPS[motion.id]?.(ctx);
 
       const button = stage.querySelector('button.demo-btn');
       if (button) {

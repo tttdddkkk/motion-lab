@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { COMPARE_GROUPS, SECTIONS, buildTracks, formatParams, toWaapiJson } from '../motions/compare.js';
+import { COMPARE_GROUPS, SECTIONS, PAIR_SECTION, buildTracks, formatParams, toWaapiJson } from '../motions/compare.js';
 
 const variants = COMPARE_GROUPS.flatMap(g => g.variants.map(v => ({ g, v })));
 const TARGETS = new Set(['btn', 'ripple', 'incoming', 'outgoing', 'items', 'box', 'reveal', 'toast']);
@@ -16,7 +16,7 @@ test('バリアント ID は一意で、グループは必ずいずれかのセ�
 test('A・B のグループには基準がちょうど1つ、C のグループには基準がない', () => {
   for (const g of COMPARE_GROUPS) {
     const bases = g.variants.filter(v => v.base).length;
-    expect(bases, g.id).toBe(g.section === 'C' ? 0 : 1);
+    expect(bases, g.id).toBe(g.section === PAIR_SECTION ? 0 : 1);
   }
 });
 
