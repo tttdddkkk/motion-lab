@@ -83,12 +83,19 @@
 
 /* テキスト: 字幕（映像の下の字幕枠） */
 .tx { position: absolute; inset: 0; display: grid; grid-template-rows: 1fr auto; }
+.tx.tx-has-bar { grid-template-rows: 1fr auto auto; }
 .tx-media { background: linear-gradient(160deg, #3b5bdb, #7a4dd8); }
 .tx-caption {
   margin: 0; min-height: 96px; box-sizing: border-box; padding: 20px 16px;
   background: #151a24; border-top: 1px solid rgba(255,255,255,.08);
   color: var(--text); font-size: 17px; line-height: 26px; text-align: center;
 }
+/* 文はすべて同じ場所に重ね、時刻に合わせて見せる。文字の既定は非表示（アニメーション中だけ見える） */
+.tx-caption { display: grid; place-items: center; }
+.tx-sentence { grid-area: 1 / 1; }
+.tx-sentence span { opacity: 0; }
+.tx-caption.is-static .tx-sentence { opacity: 0; }
+.tx-caption.is-static .tx-sentence span { opacity: 1; }
 /* テキスト: ティッカー帯（画面上部の1行の帯） */
 .tx-board { position: absolute; inset: 0; overflow: hidden; background: #151a24; padding: 72px 16px 16px; display: grid; align-content: start; gap: 12px; box-sizing: border-box; }
 .tx-row { height: 54px; border-radius: 12px; background: rgba(255,255,255,.08); }

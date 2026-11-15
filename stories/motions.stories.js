@@ -74,14 +74,14 @@ function story(id) {
         await step('再生前でも、文字が時刻0の位置に配置されている', async () => {
           motion.setup(stage, { dur: ms => ms / 4, reduced: () => false });
           await frame();
-          // 時刻で位置が決まる要素（流れる文字、または data-seek-probe を付けた要素）
-          const transforms = [...stage.querySelectorAll('.flow-item, [data-seek-probe]')].map(el => getComputedStyle(el).transform);
-          await expect(transforms.length).toBeGreaterThan(0);
+          // 時刻で位置が決まる要素（流れる文字、または data-seek-probe="transform" を付けた要素）。
+          // 見え方（opacity）だけが変わるもの（字幕）は位置を持たないので、ここでは調べない
+          const transforms = [...stage.querySelectorAll('.flow-item, [data-seek-probe="transform"]')].map(el => getComputedStyle(el).transform);
           await expect(transforms).not.toContain('none');
           stage.getAnimations({ subtree: true }).forEach(a => a.cancel());
         });
 
-        await step('シークバーを動かすと、表示位置が時刻に合わせて変わる', async () => {
+        await step('シークバーを動かすと、表示が時刻に合わせて変わる', async () => {
           motion.setup(stage, { dur: ms => ms / 4, reduced: () => false }).run().catch(() => {});
           await frame();
           // setup で中身が作り直されるため、要素は取り直す
@@ -91,7 +91,8 @@ function story(id) {
             range.dispatchEvent(new PointerEvent('pointerdown'));
             range.value = String(value);
             range.dispatchEvent(new Event('input'));
-            return getComputedStyle(item).transform;
+            const cs = getComputedStyle(item);
+            return `${cs.transform} / ${cs.opacity}`;   // 位置か見え方のどちらかが時刻で変わる
           };
           const early = at(50);
           const later = at(250);

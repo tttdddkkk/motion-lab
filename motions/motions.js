@@ -194,6 +194,93 @@ function flowSeek(stage, ctx, { vertical }) {
   return { run };
 }
 
+/* シークバー付きの再生（テキストの字幕・同期ハイライトで共通）。
+   root の中の .flow-play / .flow-range を使う。makeAnims() が返すアニメーションと
+   時計（root.animate([])）の currentTime をそろえて、進めたり戻したりする */
+function withSeek(root, ctx, total, makeAnims) {
+  const playBtn = root.querySelector('.flow-play');
+  const range = root.querySelector('.flow-range');
+  let anims = [];
+  let clock = null;
+  let dragging = false;
+  let wasPlaying = false;
+  let ticking = false;
+
+  const isPlaying = () => clock?.playState === 'running';
+  const setLabel = () => {
+    playBtn.textContent = isPlaying() ? '❚❚' : '▶';
+    playBtn.setAttribute('aria-label', isPlaying() ? '一時停止' : '再生');
+  };
+  const seek = fraction => {
+    const time = fraction * ctx.dur(total());
+    anims.forEach(a => { a.currentTime = time; });
+  };
+  // シークバーの表示更新は再生中だけ回し、二重に起動しない
+  const tick = () => {
+    if (!clock || clock.playState === 'idle') { ticking = false; return; }
+    if (!dragging) range.value = Math.round(clock.currentTime / ctx.dur(total()) * 1000);
+    setLabel();
+    ticking = clock.playState === 'running';
+    if (ticking) requestAnimationFrame(tick);
+  };
+  const startTick = () => {
+    if (ticking) return;
+    ticking = true;
+    requestAnimationFrame(tick);
+  };
+  const build = () => {
+    anims.forEach(a => a.cancel());
+    anims = makeAnims();
+    clock = root.animate([], { duration: ctx.dur(total()) });
+    anims.push(clock);
+    startTick();
+  };
+
+  playBtn.addEventListener('click', () => {
+    if (!clock) return;
+    if (isPlaying()) anims.forEach(a => a.pause());
+    else {
+      if (clock.playState === 'finished') seek(0);
+      anims.forEach(a => a.play());
+      startTick();
+    }
+    setLabel();
+  });
+  range.addEventListener('pointerdown', () => {
+    dragging = true;
+    wasPlaying = isPlaying();
+    anims.forEach(a => a.pause());
+  });
+  range.addEventListener('input', () => seek(range.value / 1000));
+  range.addEventListener('change', () => {
+    if (dragging && wasPlaying) {
+      anims.forEach(a => a.play());
+      startTick();
+    }
+    dragging = false;
+    setLabel();
+  });
+
+  const run = () => {
+    build();
+    return clock.finished.then(() => setLabel());
+  };
+  // 再生前でも時刻0の状態で表示し、シークできるようにする（位置の計算に DOM の寸法が要る）
+  requestAnimationFrame(() => {
+    if (clock || !root.isConnected) return;
+    build();
+    anims.forEach(a => a.pause());
+    setLabel();
+  });
+  return { run };
+}
+
+const SEEK_BAR = `
+  <div class="flow-bar">
+    <button class="flow-play" type="button" aria-label="一時停止">❚❚</button>
+    <input class="flow-range" type="range" min="0" max="1000" value="0" aria-label="再生位置">
+  </div>`;
+
 export const MOTIONS = [
   {
     id: 'press-bounce',
@@ -894,44 +981,49 @@ banner.remove();`,
     use: '字幕・ナレーション・チャットボットの返答',
     ms: 80,
     easing: 'linear',
-    desc: '映像の下の字幕枠に、文字が1文字ずつ現れる。1文を出しきったら少し見せて、次の文に入れ替わる。時間は1文字ごとの間隔。',
+    desc: '映像の下の字幕枠に、文字が1文字ずつ現れる。1文を出しきったら少し見せて、次の文に入れ替わる。シークバーで進めたり戻したりできる。時間は1文字ごとの間隔。',
     setup(stage, ctx) {
       const CHAR = 80;     // 1文字ごとの間隔
       const FADE = 60;     // 1文字が現れる時間
       const HOLD = 900;    // 1文を出しきってから見せる時間
       const SENTENCES = ['ここから少しだけ', '寄り道をしてみよう', 'この先が今日の本題です'];
-      stage.innerHTML = `
-        <div class="tx">
-          <div class="tx-media"></div>
-          <p class="tx-caption" aria-live="polite"></p>
-        </div>`;
-      const caption = stage.querySelector('.tx-caption');
-      const wait = ms => new Promise(r => setTimeout(r, ctx.dur(ms)));
-      const finish = a => a.finished.catch(() => {});
-      let token = 0;
+      // 文ごとの開始時刻と長さ（打ち終わり + HOLD）。1本の時間軸に並べてシークできるようにする
+      const spans = SENTENCES.map(t => ([...t].length - 1) * CHAR + FADE + HOLD);
+      const starts = spans.map((_, k) => spans.slice(0, k).reduce((a, b) => a + b, 0));
+      const TOTAL = spans.reduce((a, b) => a + b, 0);
 
-      const run = async () => {
-        const my = ++token;
-        for (const text of SENTENCES) {
-          if (my !== token || !caption.isConnected) return;
-          const chars = [...text].map(c => Object.assign(document.createElement('span'), { textContent: c }));
-          caption.replaceChildren(...chars);
-          if (ctx.reduced()) {
-            // 動きを減らす: 1文字ずつにせず、1文をまとめて不透明度だけで出す
-            await finish(caption.animate([{ opacity: 0 }, { opacity: 1 }], { duration: ctx.dur(200), easing: 'linear' }));
-          } else {
-            const anims = chars.map((el, i) => el.animate([{ opacity: 0 }, { opacity: 1 }],
-              { duration: ctx.dur(FADE), delay: ctx.dur(i * CHAR), easing: 'linear', fill: 'backwards' }));
-            await finish(anims[anims.length - 1]);
-          }
-          await wait(HOLD);
+      // 文はすべて同じ場所に重ねて置き、時刻に合わせて見せる文を切り替える。
+      // シークの検証用に、1文目の最後の文字に data-seek-probe を付ける（打ち終わりの前後で見え方が変わる）
+      stage.innerHTML = `
+        <div class="tx tx-has-bar">
+          <div class="tx-media"></div>
+          <p class="tx-caption">${SENTENCES.map((t, k) => `<span class="tx-sentence">${[...t].map((c, i, all) =>
+            `<span${k === 0 && i === all.length - 1 ? ' data-seek-probe="opacity"' : ''}>${c}</span>`).join('')}</span>`).join('')}</p>
+          ${SEEK_BAR}
+        </div>`;
+      const root = stage.querySelector('.tx');
+      const caption = stage.querySelector('.tx-caption');
+      const sentences = [...caption.children];
+
+      return withSeek(root, ctx, () => TOTAL, () => {
+        const reduced = ctx.reduced();
+        caption.classList.toggle('is-static', reduced);
+        const opt = (start, dur) => ({ delay: ctx.dur(start), duration: ctx.dur(dur), easing: 'linear' });
+        if (reduced) {
+          // 動きを減らす: 1文字ずつにせず、1文をまとめて不透明度だけで出す（文の外では CSS で非表示）
+          return sentences.map((el, k) => el.animate(
+            [{ opacity: 0 }, { opacity: 1, offset: Math.min(1, 200 / spans[k]) }, { opacity: 1 }], opt(starts[k], spans[k])));
         }
-        if (my === token && caption.isConnected) caption.replaceChildren();
-      };
-      return { run };
+        // 各文字: 自分の番で現れ、その文の終わりまで見える（前後は CSS の opacity: 0）
+        return sentences.flatMap((el, k) => [...el.children].map((c, i) => {
+          const t = i * CHAR, dur = spans[k] - t;
+          return c.animate([{ opacity: 0 }, { opacity: 1, offset: FADE / dur }, { opacity: 1 }], opt(starts[k] + t, dur));
+        }));
+      });
     },
     code: {
-      css: `/* 1文字ずつ span で包み、--i に何文字目か（0, 1, 2…）を入れる */
+      css: `/* 1文字ずつ span で包み、--i に何文字目か（0, 1, 2…）を入れる。
+   文の入れ替えとシークは WAAPI のタブを参照 */
 .caption span {
   animation: type-in 60ms linear backwards;
   animation-delay: calc(var(--i) * 80ms);
@@ -940,15 +1032,24 @@ banner.remove();`,
   from { opacity: 0; }
   to   { opacity: 1; }
 }`,
-      waapi: `const chars = [...text].map(c =>
-  Object.assign(document.createElement('span'), { textContent: c }));
-caption.replaceChildren(...chars);
+      waapi: `// 文を1本の時間軸に並べる。文 k の長さ = 打ち終わり + 見せる時間（900ms）
+const spans = sentences.map(t => ([...t].length - 1) * 80 + 60 + 900);
+const starts = spans.map((_, k) => spans.slice(0, k).reduce((a, b) => a + b, 0));
 
-const anims = chars.map((el, i) => el.animate(
-  [{ opacity: 0 }, { opacity: 1 }],
-  { duration: 60, delay: i * 80, easing: 'linear', fill: 'backwards' }
-));
-await anims[anims.length - 1].finished;   // 1文を出しきるまで待つ`,
+// 各文字は自分の番で現れ、その文の終わりまで見える（前後は CSS で opacity: 0）
+const anims = sentenceEls.flatMap((el, k) => [...el.children].map((c, i) => {
+  const dur = spans[k] - i * 80;
+  return c.animate(
+    [{ opacity: 0 }, { opacity: 1, offset: 60 / dur }, { opacity: 1 }],
+    { delay: starts[k] + i * 80, duration: dur, easing: 'linear' }
+  );
+}));
+
+// シーク: すべてのアニメーションの再生位置を同じ時刻にそろえる
+range.addEventListener('input', () => {
+  const time = range.value / 1000 * TOTAL;
+  anims.forEach(a => { a.pause(); a.currentTime = time; });
+});`,
       reduced: `@media (prefers-reduced-motion: reduce) {
   /* 1文字ずつにせず、1文をまとめて不透明度だけで出す */
   .caption span { animation: none; }
@@ -1054,55 +1155,22 @@ track.animate(
       stage.innerHTML = `
         <div class="tx-sync">
           <div class="tx-sync-frame">
-            <ol class="tx-lines" data-seek-probe>${LINES.map(l => `<li>${l}</li>`).join('')}</ol>
+            <ol class="tx-lines" data-seek-probe="transform">${LINES.map(l => `<li>${l}</li>`).join('')}</ol>
           </div>
-          <div class="flow-bar">
-            <button class="flow-play" type="button" aria-label="一時停止">❚❚</button>
-            <input class="flow-range" type="range" min="0" max="1000" value="0" aria-label="再生位置">
-          </div>
+          ${SEEK_BAR}
         </div>`;
+      const root = stage.querySelector('.tx-sync');
       const frame = stage.querySelector('.tx-sync-frame');
       const list = stage.querySelector('.tx-lines');
       const rows = [...list.children];
-      const playBtn = stage.querySelector('.flow-play');
-      const range = stage.querySelector('.flow-range');
-
-      let anims = [];
-      let clock = null;
-      let dragging = false;
-      let wasPlaying = false;
-      let ticking = false;
       const at = ms => Math.min(1, Math.max(0, ms / TOTAL));   // 時刻 → keyframe の offset
 
-      const isPlaying = () => clock?.playState === 'running';
-      const setLabel = () => {
-        playBtn.textContent = isPlaying() ? '❚❚' : '▶';
-        playBtn.setAttribute('aria-label', isPlaying() ? '一時停止' : '再生');
-      };
-      const seek = fraction => {
-        const time = fraction * ctx.dur(TOTAL);
-        anims.forEach(a => { a.currentTime = time; });
-      };
-      const tick = () => {
-        if (!clock || clock.playState === 'idle') { ticking = false; return; }
-        if (!dragging) range.value = Math.round(clock.currentTime / ctx.dur(TOTAL) * 1000);
-        setLabel();
-        ticking = clock.playState === 'running';
-        if (ticking) requestAnimationFrame(tick);
-      };
-      const startTick = () => {
-        if (ticking) return;
-        ticking = true;
-        requestAnimationFrame(tick);
-      };
-
-      const build = () => {
-        anims.forEach(a => a.cancel());
+      return withSeek(root, ctx, () => TOTAL, () => {
         const reduced = ctx.reduced();
         list.classList.toggle('is-static', reduced);
         const opt = { duration: ctx.dur(TOTAL), easing: 'linear', fill: 'both' };
         // 行 i は i * LINE から明るくなり、次の行に移ると暗く戻る
-        anims = rows.map((el, i) => {
+        const anims = rows.map((el, i) => {
           const on = i * LINE, off = (i + 1) * LINE;
           const fade = reduced ? 0 : MOVE;   // 動きを減らす: 明るさは瞬時に切り替える
           const k = [{ opacity: DIM, offset: 0 }];
@@ -1124,48 +1192,8 @@ track.animate(
           k.push({ transform: `translateY(${y(rows[rows.length - 1])}px)`, offset: 1 });
           anims.push(list.animate(k, opt));
         }
-        clock = frame.animate([], { duration: ctx.dur(TOTAL) });
-        anims.push(clock);
-        startTick();
-      };
-
-      playBtn.addEventListener('click', () => {
-        if (!clock) return;
-        if (isPlaying()) anims.forEach(a => a.pause());
-        else {
-          if (clock.playState === 'finished') seek(0);
-          anims.forEach(a => a.play());
-          startTick();
-        }
-        setLabel();
+        return anims;
       });
-      range.addEventListener('pointerdown', () => {
-        dragging = true;
-        wasPlaying = isPlaying();
-        anims.forEach(a => a.pause());
-      });
-      range.addEventListener('input', () => seek(range.value / 1000));
-      range.addEventListener('change', () => {
-        if (dragging && wasPlaying) {
-          anims.forEach(a => a.play());
-          startTick();
-        }
-        dragging = false;
-        setLabel();
-      });
-
-      const run = () => {
-        build();
-        return clock.finished.then(() => setLabel());
-      };
-      // 再生前でも時刻0の配置で表示し、シークできるようにする（位置の計算に DOM の寸法が要る）
-      requestAnimationFrame(() => {
-        if (clock || !frame.isConnected) return;
-        build();
-        anims.forEach(a => a.pause());
-        setLabel();
-      });
-      return { run };
     },
     code: {
       css: `/* 今の行に .is-current を付け替える（JS で時刻から決める） */
