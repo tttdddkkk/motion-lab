@@ -1,6 +1,6 @@
 # Motion Lab
 
-自分用のモーションライブラリ（ボタンエフェクト・画面遷移・コメント・通知・テキスト）。認識合わせのための、動きの実物集です。
+自分用のモーションライブラリ（ボタンエフェクト・画面遷移・コメント・通知・展開・テキスト）。認識合わせのための、動きの実物集です。
 
 - ビューア: 素の HTML / CSS / WAAPI。ビルド工程なし
 - カタログとテスト: Storybook（`@storybook/html-vite`）+ `@storybook/addon-vitest`（Node 20.19+ / 22.12+）
@@ -42,6 +42,7 @@
 | 依存更新 | Dependabot（`.github/dependabot.yml`） | 毎週月曜に npm と Actions の更新 PR。公開から7日（major は14日）経ったバージョンだけ取り込む |
 | 脆弱性対応 | Dependabot alerts / security updates | GitHub のリポジトリ設定で有効化する |
 | プレビュー | Netlify Deploy Preview（`netlify.toml`） | PR ごとにビューアのプレビューURLを発行（ADR 0009 / 0010） |
+| 本番デプロイ（Netlify） | GitHub Actions（`.github/workflows/deploy-netlify.yml`） | 手動実行（`workflow_dispatch`）のみ。クレジット消費を自分で制御する（ADR 0015） |
 | Node | `.node-version` | CI とローカルで揃える |
 
 ### あえて入れていないもの
