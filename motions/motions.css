@@ -87,8 +87,8 @@
 .overlay-close:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .book3d { position: relative; z-index: 1; width: 176px; height: 272px; perspective: 900px; transform-origin: 0 50%; }
 .book-front { position: absolute; inset: 0; perspective: 900px; transform-origin: 0 50%; }
-/* 背表紙の面: 表紙の左辺の外側に置く。開いた状態では真横を向いて見えない。幅は背表紙の幅(38px)を --k 倍したもの */
-.book-spine-face { position: absolute; top: 0; right: 100%; width: calc(38px * var(--k)); height: 100%; transform-origin: 100% 50%; transform: rotateY(-90deg); }
+/* 背表紙の面: 表紙の左辺の外側に置く。開いた状態では消す（真横の細い線を残さない）。幅は背表紙の幅(38px)を --k 倍したもの */
+.book-spine-face { position: absolute; top: 0; right: 100%; width: calc(38px * var(--k)); height: 100%; transform-origin: 100% 50%; transform: rotateY(-90deg); visibility: hidden; }
 .book-inside {
   position: absolute; inset: 0; overflow: hidden; border-radius: 3px 8px 8px 3px; background: #f3ecdc; color: #2b2a26;
   box-shadow: 4px 6px 0 -2px #e0d6bd, 0 14px 30px rgba(0,0,0,.5);

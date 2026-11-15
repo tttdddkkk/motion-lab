@@ -751,7 +751,7 @@ range.addEventListener('change', () => {
             // 背表紙の面を向いた姿勢から、縦軸で回りながら持ち上がり、表紙の面が正面に来る
             a(book, [{ transform: poseOf(i) }, { transform: 'none' }], 500, 0, INOUT),
             a(front, [{ transform: 'rotateY(90deg)' }, { transform: 'rotateY(0deg)' }], 500, 0, INOUT),
-            a(face, [{ transform: 'rotateY(0deg)' }, { transform: 'rotateY(-90deg)' }], 500, 0, INOUT),
+            a(face, [{ transform: 'rotateY(0deg)', visibility: 'visible' }, { transform: 'rotateY(-90deg)', visibility: 'hidden' }], 500, 0, INOUT),   // 回り終えたら消す（真横の細い線を残さない）
             a(cover, [{ transform: 'rotateY(0deg)' }, { transform: 'rotateY(-100deg)' }], 600, 550, INOUT),
             ...items.map((el, n) => a(el, [{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'none' }], 300, 750 + n * 80, LIFT)),
           ];
@@ -778,7 +778,7 @@ range.addEventListener('change', () => {
             // 縦軸で回りながら棚へ戻り、背表紙の面が棚の背表紙に重なったところで終わる
             a(book, [{ transform: 'none' }, { transform: poseOf(i) }], 500, 500, INOUT),
             a(front, [{ transform: 'rotateY(0deg)' }, { transform: 'rotateY(90deg)' }], 500, 500, INOUT),
-            a(face, [{ transform: 'rotateY(-90deg)' }, { transform: 'rotateY(0deg)' }], 500, 500, INOUT),
+            a(face, [{ transform: 'rotateY(-90deg)', visibility: 'hidden' }, { transform: 'rotateY(0deg)', visibility: 'visible' }], 500, 500, INOUT),
             a(bg, [{ opacity: 1 }, { opacity: 0 }], 300, 700, LIFT),
             a(closeBtn, [{ opacity: 1 }, { opacity: 0 }], 300, 700, LIFT),
           ];
@@ -843,7 +843,8 @@ range.addEventListener('change', () => {
   position: absolute; top: 0; right: 100%;   /* 表紙の左辺の外側。幅は背表紙の幅 ÷ 縮尺（--k） */
   width: calc(38px * var(--k)); height: 100%;
   transform-origin: 100% 50%;
-  transform: rotateY(-90deg);                /* 開いた状態では真横を向いて見えない */
+  transform: rotateY(-90deg);
+  visibility: hidden;                        /* 開いた状態では消す（真横の細い線を残さない） */
 }
 
 /* 1. 背表紙の面を向いた姿勢から、縦軸で回りながら持ち上がる。
@@ -853,7 +854,10 @@ range.addEventListener('change', () => {
 .overlay.is-open .spine-face { animation: turn-face .5s cubic-bezier(.65, 0, .35, 1) both; }
 @keyframes lift       { from { transform: var(--pose); } to { transform: none; } }
 @keyframes turn-front { from { transform: rotateY(90deg); } to { transform: rotateY(0deg); } }
-@keyframes turn-face  { from { transform: rotateY(0deg); } to { transform: rotateY(-90deg); } }
+@keyframes turn-face  {
+  from { transform: rotateY(0deg); visibility: visible; }
+  to   { transform: rotateY(-90deg); visibility: hidden; }
+}
 
 /* 2. 表紙が左の辺を軸に開く。.55s 待って、回転が落ち着いてから */
 .cover { transform-origin: 0 50%; backface-visibility: hidden; }
@@ -899,7 +903,8 @@ async function open(spine, bookHeight) {
     // 背表紙の面を向いた姿勢から、縦軸で回りながら持ち上がる
     anim(book,  [{ transform: poseOf(spine, bookHeight) }, { transform: 'none' }], 500, 0, INOUT),
     anim(front, [{ transform: 'rotateY(90deg)' }, { transform: 'rotateY(0deg)' }], 500, 0, INOUT),
-    anim(face,  [{ transform: 'rotateY(0deg)' }, { transform: 'rotateY(-90deg)' }], 500, 0, INOUT),
+    anim(face,  [{ transform: 'rotateY(0deg)', visibility: 'visible' },
+                 { transform: 'rotateY(-90deg)', visibility: 'hidden' }], 500, 0, INOUT),   // 回り終えたら消す
     anim(cover, [{ transform: 'rotateY(0deg)' }, { transform: 'rotateY(-100deg)' }], 600, 550, INOUT),
     ...items.map((el, n) => anim(el,
       [{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'none' }],
@@ -916,7 +921,8 @@ async function closeIt(spine, bookHeight) {
     // 縦軸で回りながら棚へ戻り、背表紙の面が棚の背表紙に重なったところで終わる
     anim(book,  [{ transform: 'none' }, { transform: poseOf(spine, bookHeight) }], 500, 500, INOUT),
     anim(front, [{ transform: 'rotateY(0deg)' }, { transform: 'rotateY(90deg)' }], 500, 500, INOUT),
-    anim(face,  [{ transform: 'rotateY(-90deg)' }, { transform: 'rotateY(0deg)' }], 500, 500, INOUT),
+    anim(face,  [{ transform: 'rotateY(-90deg)', visibility: 'hidden' },
+                 { transform: 'rotateY(0deg)', visibility: 'visible' }], 500, 500, INOUT),
     anim(bg,    [{ opacity: 1 }, { opacity: 0 }], 300, 700, LIFT),
     anim(close, [{ opacity: 1 }, { opacity: 0 }], 300, 700, LIFT),
   ];
