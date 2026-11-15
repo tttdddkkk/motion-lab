@@ -135,3 +135,34 @@
 /* 動きを減らす: 表紙は回さず、不透明度だけで消す。背表紙の面は使わない */
 .shelf.is-reduced .book-spine-face { display: none; }
 .shelf.is-reduced .shelf-overlay.is-open .book-cover { transform: none; opacity: 0; }
+
+/* テキスト: 字幕（映像の下の字幕枠） */
+.tx { position: absolute; inset: 0; display: grid; grid-template-rows: 1fr auto; }
+.tx.tx-has-bar { grid-template-rows: 1fr auto auto; }
+.tx-media { background: linear-gradient(160deg, #3b5bdb, #7a4dd8); }
+.tx-caption {
+  margin: 0; min-height: 96px; box-sizing: border-box; padding: 20px 16px;
+  background: #151a24; border-top: 1px solid rgba(255,255,255,.08);
+  color: var(--text); font-size: 17px; line-height: 26px; text-align: center;
+}
+/* 文はすべて同じ場所に重ね、時刻に合わせて見せる。文字の既定は非表示（アニメーション中だけ見える） */
+.tx-caption { display: grid; place-items: center; }
+.tx-sentence { grid-area: 1 / 1; }
+.tx-sentence span { opacity: 0; }
+.tx-caption.is-static .tx-sentence { opacity: 0; }
+.tx-caption.is-static .tx-sentence span { opacity: 1; }
+/* テキスト: ティッカー帯（画面上部の1行の帯） */
+.tx-board { position: absolute; inset: 0; overflow: hidden; background: #151a24; padding: 72px 16px 16px; display: grid; align-content: start; gap: 12px; box-sizing: border-box; }
+.tx-row { height: 54px; border-radius: 12px; background: rgba(255,255,255,.08); }
+.tx-band { position: absolute; top: 16px; left: 0; right: 0; height: 36px; overflow: hidden; background: #2f3a52; color: var(--text); font-size: 14px; line-height: 36px; }
+.tx-track { display: flex; width: max-content; white-space: nowrap; }
+.tx-track span { padding-left: 16px; padding-right: 16px; }
+.tx-static { display: block; padding: 0 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* 上の display 指定は hidden 属性（UA の display: none）より優先されるため、hidden のときを明示する */
+.tx-track[hidden], .tx-static[hidden] { display: none; }
+/* テキスト: 同期ハイライト（歌詞・書き起こし） */
+.tx-sync { position: absolute; inset: 0; display: grid; grid-template-rows: 1fr auto; }
+.tx-sync-frame { position: relative; overflow: hidden; background: #151a24; }
+.tx-lines { position: absolute; top: 0; left: 0; right: 0; margin: 0; padding: 0 20px; list-style: none; will-change: transform; }
+.tx-lines.is-static { top: 16px; }
+.tx-lines li { padding: 6px 0; color: var(--text); font-size: 16px; line-height: 24px; opacity: .35; }
