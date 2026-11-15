@@ -14,6 +14,22 @@
 - すべてのモーションに「動きを減らす」版を用意する。その版では transform と clip-path を使わない（テストで強制している）
 - デモとコードはすべてオリジナルで作る。案件由来のコードや、外部サイトのデモ・コードは使わない
 
+## モダン CSS を使うときの対応ブラウザ確認
+
+CSS の新機能（新しいプロパティ・関数・at-rule・セレクタ、`animation-timeline`、`@starting-style`、`@property`、`linear()` など）は、ブラウザとバージョンによって未対応のことがある。ここのコードは利用者が自分の実装へコピーするため、ビューアで動くだけでは足りない。使う前に、次の手順で確認する。記憶や推測で「使える」と判断しない。
+
+1. 使う機能を列挙する。`code.css` / `motions.css` / `compare.js` に出てくる新しめの機能をすべて対象にする
+2. 対応状況を一次情報で調べる。MDN の Browser compatibility（BCD）、web.dev / MDN の Baseline、caniuse を使い、WebSearch / WebFetch で今の値を取る。調べた日付を控える
+3. 各機能について、Chrome（Android）・Safari（iOS）・Firefox の対応開始バージョンと Baseline の区分（Widely available / Newly available / 対象外）を表にする。部分対応（一部の値だけ・フラグ付き・プレフィックス必須）は区別して書く
+4. 判断する
+   - Widely available: そのまま使う
+   - Newly available: 使ってよいが、`@supports` か `CSS.supports()` で判定し、未対応時の代替（動きを減らす版に近い、フェードだけの表現など）を用意する。`compare-ui.js` の `clipSupported()` が先例
+   - Baseline 外（一部ブラウザのみ）: ビューアの本体には入れない。入れる場合は `@supports` で囲み、未対応時にも壊れないことを確認したうえで、PR で「要確認」にする
+5. 結果を残す。PR 本文に「機能 / 対応開始バージョン / Baseline 区分 / 調べた日 / 未対応時の挙動」を書く。`code.css` に貼るコードが `@supports` の代替を含むなら、`setup` の実装と手で合わせる（上の決まりと同じ）。判断が従来の方針（素の CSS で、ブラウザ差に頼らない）から外れるなら ADR を追加する
+6. 判断に迷う機能（対応が Baseline の境目、バージョンの記述が情報源で食い違う、実機で確認できない）は、使わずに作業者へ確認する
+
+対応ブラウザの下限は「Baseline Widely available」を既定とする。それより新しい機能を使うのは、上の手順で代替まで用意できたときだけ。
+
 ## 前提と判断基準
 
 背景と理由は `docs/philosophy.md` を参照する。
