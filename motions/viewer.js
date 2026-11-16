@@ -8,6 +8,7 @@ const $ = id => q(document, `#${id}`);
 const reducedBox = /** @type {HTMLInputElement} */ ($('reduced'));
 const loopBox = /** @type {HTMLInputElement} */ ($('loop'));
 
+/** @type {[string, string][]} */
 const CATS = [['all', 'すべて'], ['button', 'ボタン'], ['transition', '画面遷移'], ['comment', 'コメント'], ['notice', '通知'], ['expand', '展開'], ['text', 'テキスト']];
 const SPEEDS = [0.5, 1, 2];
 /** @type {['css' | 'waapi' | 'reduced', string][]} */
@@ -40,7 +41,15 @@ const current = () => {
 };
 const visible = () => MOTIONS.filter(m => state.cat === 'all' || m.cat === state.cat);
 
-/* 押されている1つが aria-pressed になるボタン群を、container に作り直す */
+/**
+ * 押されている1つが aria-pressed になるボタン群を、container に作り直す。
+ * @template K
+ * @param {HTMLElement} container
+ * @param {[K, string][]} items  [キー, 表示名]
+ * @param {(key: K) => boolean} isPressed
+ * @param {(key: K) => unknown} onPick
+ * @param {string} [className]
+ */
 function renderButtons(container, items, isPressed, onPick, className = '') {
   container.innerHTML = '';
   items.forEach(([key, label]) => {
@@ -104,6 +113,7 @@ function renderInfo() {
     <dt>イージング</dt><dd><code>${m.easing}</code></dd>`;
 }
 
+/** @param {string} id */
 function select(id) {
   state.id = id;
   if (mode === 'viewer') history.replaceState(null, '', '#' + encodeURIComponent(id));
@@ -153,6 +163,7 @@ document.addEventListener('keydown', e => {
 /* 表示の切り替え（モーション / 差分比較） */
 let compareLoaded = false;
 
+/** @param {'viewer' | 'compare'} next */
 async function setMode(next) {
   state.runId++; /* モーションのループ再生を止める */
   mode = next;
