@@ -93,9 +93,47 @@ async function checkSeekBar({ motion, stage, step }) {
   });
 }
 
+/* 条件が成り立つまで待つ（最大 3 秒）。アニメーションの完了待ちに使う */
+const until = async (condition, message) => {
+  const limit = performance.now() + 3000;
+  while (!condition()) {
+    if (performance.now() > limit) throw new Error(`待ってもならなかった: ${message}`);
+    await new Promise(r => setTimeout(r, 30));
+  }
+};
+
+/* 開閉オーバーレイ（本棚・カード）の共通の操作の検証。triggerSel: 開く操作の対象、overlaySel: オーバーレイ */
+const overlayStep = (triggerSel, overlaySel) => async ({ motion, stage, step }) => {
+  await step('クリックで開き、閉じるボタンにフォーカスが移る。Esc で閉じ、フォーカスが元の対象に戻る', async () => {
+    motion.setup(stage, fastCtx(false));
+    await frame();
+    const triggers = [...stage.querySelectorAll(triggerSel)];
+    const overlay = /** @type {HTMLElement} */ (stage.querySelector(overlaySel));
+    const closeBtn = /** @type {HTMLElement} */ (stage.querySelector('.overlay-close'));
+    const target = /** @type {HTMLElement} */ (triggers[1]);
+    target.focus();
+    target.click();
+    // 開くアニメーションが終わるまで、2回目の操作は受け付けない
+    triggers[3].click();
+    await until(() => overlay.classList.contains('is-open'), '開く');
+    await until(() => stage.getAnimations({ subtree: true }).length === 0, '開くアニメーションの終了');
+    await expect(document.activeElement).toBe(closeBtn);
+    await expect(triggers.filter(t => t.classList.contains('is-out'))).toHaveLength(1);   // 開いたのは1つだけ
+    overlay.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    await until(() => !overlay.classList.contains('is-open'), '閉じる');
+    await until(() => stage.getAnimations({ subtree: true }).length === 0, '閉じるアニメーションの終了');
+    await expect(document.activeElement).toBe(target);
+    await expect(triggers.filter(t => t.classList.contains('is-out'))).toHaveLength(0);
+    cancelAll(stage);
+  });
+};
+
 /* ---- モーション固有の検証（id → 検証。共通の検証のあとに実行する） ---- */
 
 const EXTRA_STEPS = {
+  'shelf-open': overlayStep('.spine', '.shelf-overlay'),
+  'card-draw': overlayStep('.tcard', '.deck-overlay'),
+
   'flow-seek-vertical': async ({ motion, stage, step }) => {
     await step('縦: 折り返した文字が重ならず、終了時には枠の外へ出きる', async () => {
       motion.setup(stage, fastCtx(false)).run().catch(() => {});
