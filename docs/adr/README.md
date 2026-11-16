@@ -26,3 +26,4 @@
 | [0017](0017-text-category.md) | 「テキスト」カテゴリを作り、1つの文章の見せ方を集める | 採用 |
 | [0018](0018-jsdoc-typecheck.md) | JSDoc と tsc で型を検査する（ビューアは JavaScript のまま） | 採用 |
 | [0019](0019-detect-duplicate-code.md) | ロジックの重複は共通化し、コピペ検出（jscpd）を CI で強制する | 採用 |
+| [0020](0020-split-motions-by-category.md) | モーション定義をカテゴリ別のファイルに分ける | 採用 |

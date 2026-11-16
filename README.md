@@ -16,7 +16,9 @@
 
 ## 構成
 
-- `motions/motions.js` … モーション定義（`MOTIONS` 配列）。ビューアと Storybook の両方がここを読む
+- `motions/motions.js` … モーション定義の入口（`MOTIONS` 配列）。ビューアと Storybook の両方がここを読む。中身は `motions/categories/` のカテゴリ別ファイルを集めたもの（ADR 0020）
+- `motions/categories/` … カテゴリごとのモーション定義（`button` `transition` `comment` `notice` `expand` `text`）と、そのカテゴリだけが使うヘルパー
+- `motions/runtime.js` / `motions/seek.js` … 複数のカテゴリが使う共通部分（`makeCtx` と `settle`、シークバー付きの再生）
 - `motions/motions.css` … 共有トークンとデモ用スタイル
 - `index.html` … スマホ向けビューアの骨組み（HTML だけ）。「差分比較」への切り替え（`#compare`）を含む
 - `motions/viewer.js` / `motions/viewer.css` … ビューアの動作と画面レイアウト。`index.html` から読み込む
@@ -36,7 +38,7 @@
 
 ## モーションを追加する
 
-1. `motions/motions.js` の `MOTIONS` 配列にオブジェクトを1つ足す（`id / cat / name / feel / use / ms / easing / desc / setup / code{css, waapi, reduced}`）
+1. `motions/categories/<カテゴリ>.js` の配列にオブジェクトを1つ足す（`id / cat / name / feel / use / ms / easing / desc / setup / code{css, waapi, reduced}`）
 2. `stories/motions.stories.js` の末尾に `export const Xxx = story('<id>');` を1行足す（忘れると `npm test` が失敗する）
 
 ## 開発環境設定

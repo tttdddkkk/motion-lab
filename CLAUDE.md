@@ -4,7 +4,7 @@
 
 - 判断の経緯は `docs/adr/` にある。見送った案を再導入する前に確認する。判断を変えたら ADR を追加する
 - 変更はブランチを切って PR にする。main に直接 push しない（GitHub のルールセットで拒否される。マージには CI の `test` 成功が必要）
-- 作業を始める前に `git fetch origin main` を実行し、ブランチが main の最新から切られていることを確認する（クローンが古いことがある）。古ければ main を取り込んでから書き始める。モーションの追加は `motions.js` / `motions.css` / ストーリーの末尾に集まるため、古いまま作業すると他の PR と衝突しやすい
+- 作業を始める前に `git fetch origin main` を実行し、ブランチが main の最新から切られていることを確認する（クローンが古いことがある）。古ければ main を取り込んでから書き始める。モーションの追加は `motions/categories/<カテゴリ>.js` / `motions.css` / ストーリーの末尾に集まるため、古いまま作業すると他の PR と衝突しやすい
 - ワークツリー（`claude -w` / `.claude/worktrees/`）では、最初に `npm ci` を実行する。`node_modules` は共有していない
 - ビューアの動作確認は `file://` ではなくローカルサーバー経由で行う（ES Modules のため `file://` では読み込めない）
 - コミット前に `npm run typecheck`、`npm run dup`、`npm test` を実行する。`npm test` は初回のみ `npx playwright install chromium` が必要

@@ -17,7 +17,7 @@ PR では `.github/workflows/claude-code-review.yml` が Claude によるレビ�
 - 「動きを減らす」版の欠落、またはその版で transform や clip-path を使っている
 - `code.css` / `code.waapi` / `code.reduced` の表示用コードが `setup` の実装と食い違っている（時間・イージング・キーフレーム）。テストでは検出できないため、レビューで確認する
 - `MOTIONS` に追加した id に対応するストーリーがない
-- ビューアが壊れる変更。`motions/motions.js` / `motions/motions.css` の読み込み、一覧・再生・速度・コード表示が動かなくなる
+- ビューアが壊れる変更。`motions/motions.js`（と `motions/categories/`）/ `motions/motions.css` の読み込み、一覧・再生・速度・コード表示が動かなくなる
 - ワークフローや設定に秘密情報が含まれる、または Storybook の `disableTelemetry` を外している
 
 **🟡 WARNING** — 動作はするが問題が起きうるもの。
