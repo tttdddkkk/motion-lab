@@ -121,7 +121,7 @@
 </div>
 
 <script type="module">
-import { MOTIONS } from './motions/motions.js';
+import { MOTIONS, makeCtx } from './motions/motions.js';
 
 /* ============================================================
    ビューア本体
@@ -138,10 +138,10 @@ const initialId = MOTIONS.some(m => m.id === hashId) ? hashId : MOTIONS[0].id;
 let mode = location.hash === '#compare' ? 'compare' : 'viewer';
 const state = { cat: 'all', id: initialId, rate: 1, tab: 'css', runId: 0, instance: null };
 
-const ctx = {
-  dur: ms => ms / state.rate,
+const ctx = makeCtx({
+  rate: () => state.rate,
   reduced: () => $('reduced').checked
-};
+});
 
 const current = () => MOTIONS.find(m => m.id === state.id);
 const visible = () => MOTIONS.filter(m => state.cat === 'all' || m.cat === state.cat);

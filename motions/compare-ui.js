@@ -1,10 +1,13 @@
 /* 差分比較ビューの描画。データは compare.js、ここはそれを描画して再生するだけ */
 import {
-  COMPARE_GROUPS, SECTIONS, ALL_TAGS, EASING_PRESETS,
+  COMPARE_GROUPS, SECTIONS, PAIR_SECTION, ALL_TAGS, EASING_PRESETS,
   buildTracks, formatParams, toWaapiJson
 } from './compare.js';
 
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+/* 「どれを指している？」の選択肢の記号（A, B, C） */
+const LETTERS = 'ABC';
+const isPair = group => group.section === PAIR_SECTION;
 const rowsHtml = n => Array.from({ length: n }, () => '<div class="row"></div>').join('');
 
 const STAGE_HTML = {
@@ -40,9 +43,9 @@ export function mountCompare({ root, nav }) {
         <button type="button" class="cmp-btn-sub" data-all="${g.id}">全て同時再生</button>
       </div>
       <p class="cmp-axis">${esc(g.axis)}</p>
-      ${g.section === 'C' ? `
+      ${isPair(g) ? `
       <fieldset class="cmp-pick"><legend>どれを指している？</legend>
-        ${g.variants.map((v, i) => `<label><input type="radio" name="pick-${g.id}" value="${i}"> ${'ABC'[i]}</label>`).join('')}
+        ${g.variants.map((v, i) => `<label><input type="radio" name="pick-${g.id}" data-group="${g.id}" value="${i}"> ${LETTERS[i]}</label>`).join('')}
         <p class="cmp-picked" data-picked="${g.id}" aria-live="polite">未選択</p>
       </fieldset>` : ''}
       <div class="cmp-grid">${g.variants.map((v, i) => cardHtml(g, v, i)).join('')}</div>
@@ -52,7 +55,7 @@ export function mountCompare({ root, nav }) {
     <article class="cmp-card${v.base ? ' is-base' : ''}" data-v="${v.id}">
       <div class="cmp-phone"><div class="cmp-stage" data-stage>${STAGE_HTML[g.stage](v)}</div></div>
       <div class="cmp-idrow">
-        ${g.section === 'C' ? `<span class="cmp-letter">${'ABC'[i]}</span>` : ''}
+        ${isPair(g) ? `<span class="cmp-letter">${LETTERS[i]}</span>` : ''}
         <code class="cmp-id">${v.id}</code>
         ${v.base ? '<span class="cmp-badge base">基準</span>' : ''}
         ${v.subtle ? `<span class="cmp-badge subtle">微差</span>` : ''}
@@ -198,10 +201,10 @@ export function mountCompare({ root, nav }) {
   root.querySelectorAll('[data-all-section]').forEach(b => { b.onclick = () => playAll(c => c.group.section === b.dataset.allSection); });
   root.querySelectorAll('input[type="radio"]').forEach(r => {
     r.onchange = () => {
-      const gid = r.name.slice(5);
+      const gid = r.dataset.group;
       const g = COMPARE_GROUPS.find(x => x.id === gid);
       const v = g.variants[Number(r.value)];
-      root.querySelector(`[data-picked="${gid}"]`).textContent = `選択: ${'ABC'[Number(r.value)]}「${v.name}」`;
+      root.querySelector(`[data-picked="${gid}"]`).textContent = `選択: ${LETTERS[Number(r.value)]}「${v.name}」`;
     };
   });
   nav.onclick = e => {
