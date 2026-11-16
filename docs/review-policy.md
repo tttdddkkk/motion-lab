@@ -26,6 +26,7 @@ PR では `.github/workflows/claude-code-review.yml` が Claude によるレビ�
 - アクセシビリティの低下（キーボード操作、`aria-*`、コントラスト）
 - `docs/adr/` にある判断と矛盾する変更で、新しい ADR が追加されていない
 - README や CLAUDE.md の記述と実際の挙動の乖離
+- 共通化できたはずのロジックの重複。同じ処理を別の書き方で実装している、既存の共通関数（`makeCtx` `settle` `showNotice` `createOverlayFlow` など）を使わずに書き直している。`npm run dup`（コピペ検出）では見つからない重複をここで見る。表示用コード（`code.*`）と差分比較のデータ表は対象外（ADR 0019）
 
 **🔵 INFO** — 任意の改善提案。表現・命名・構成の好み。最大5件まで。
 

@@ -246,6 +246,46 @@ const SEEK_BAR = `
     <input class="flow-range" type="range" min="0" max="1000" value="0" aria-label="再生位置">
   </div>`;
 
+/* 通知のデモの舞台: アプリ画面に見立てたダミーの行を並べる。head には画面上部の要素の HTML を渡す。.ntf を返す */
+function mountNoticeStage(stage, head = '') {
+  stage.innerHTML = `<div class="ntf">${head}${'<div class="ntf-row"></div>'.repeat(4)}</div>`;
+  return q(stage, '.ntf');
+}
+
+/* 通知が出ていくときの加速。入るときより速く、すっと消える */
+const NOTICE_LEAVE_EASE = 'cubic-bezier(.4, 0, 1, 1)';
+
+/**
+ * 通知の出入り: 入る → 見せる → 出る → 取り除く。
+ * 「動きを減らす」ときは、位置を動かさず、不透明度だけで出入りする（200ms）。
+ * @param {object} p
+ * @param {import('./types.js').Ctx} p.ctx
+ * @param {HTMLElement} p.el
+ * @param {string} p.off  画面の外の位置（transform）。ここから入り、ここへ出ていく
+ * @param {number} p.inMs  入る時間
+ * @param {string} p.inEase  入るときのイージング
+ * @param {number} p.outMs  出る時間
+ * @param {() => Promise<unknown>} p.hold  入りきったあとに呼ぶ。これが解決するまで見せておく
+ * @param {() => boolean} p.alive  見せたあとに false なら、出さずに止める（再生し直されたとき）
+ */
+async function showNotice({ ctx, el, off, inMs, inEase, outMs, hold, alive }) {
+  const reduced = ctx.reduced();
+  const enter = reduced
+    ? [{ opacity: 0 }, { opacity: 1 }]
+    : [{ transform: off }, { transform: 'translateY(0)' }];
+  await settle(el.animate(enter, { duration: ctx.dur(reduced ? 200 : inMs), easing: reduced ? 'linear' : inEase, fill: 'backwards' }));
+  await hold();
+  if (!alive()) return;
+  const leave = reduced
+    ? [{ opacity: 1 }, { opacity: 0 }]
+    : [{ transform: 'translateY(0)' }, { transform: off }];
+  await settle(el.animate(leave, { duration: ctx.dur(reduced ? 200 : outMs), easing: reduced ? 'linear' : NOTICE_LEAVE_EASE, fill: 'forwards' }));
+  el.remove();
+}
+
+/* 持ち上げ・降りる・フェード・中身の出現に使う、出だしが速く、ゆっくり止まるイージング */
+const LIFT = 'cubic-bezier(.2, 0, 0, 1)';
+
 /* アニメーションを ctx の再生速度に合わせて作る。最終状態は class に持たせるため fill: 'both' */
 function makeAnim(ctx) {
   return (el, frames, duration, delay, easing) =>
@@ -257,6 +297,15 @@ async function playToEnd(anims) {
   try { await Promise.all(anims.map(x => x.finished)); } catch { return false; }
   anims.forEach(x => x.cancel());
   return true;
+}
+
+/* 開くとき、オーバーレイの背景と閉じるボタンが現れる（250ms）。動きを減らす版は、オーバーレイ全体を不透明度だけで出す */
+function openOverlayFades(anim, { overlay, bg, closeBtn }, reduced) {
+  if (reduced) return [anim(overlay, [{ opacity: 0 }, { opacity: 1 }], 250, 0, 'linear')];
+  return [
+    anim(bg, [{ opacity: 0 }, { opacity: 1 }], 250, 0, LIFT),
+    anim(closeBtn, [{ opacity: 0 }, { opacity: 1 }], 250, 0, LIFT),
+  ];
 }
 
 /**
@@ -791,11 +840,7 @@ range.addEventListener('change', () => {
     setup(stage, ctx) {
       const IN = 300, OUT = 250, HOLD = 2500;
       const OFF = 'translateY(calc(100% + 20px))';   // 下端の外
-      stage.innerHTML = `
-        <div class="ntf">
-          <div class="ntf-row"></div><div class="ntf-row"></div><div class="ntf-row"></div><div class="ntf-row"></div>
-        </div>`;
-      const root = q(stage, '.ntf');
+      const root = mountNoticeStage(stage);
       const { wait } = ctx;
       let token = 0;
 
@@ -808,19 +853,12 @@ range.addEventListener('change', () => {
         toast.setAttribute('role', 'status');
         toast.innerHTML = '<span class="ntf-dot"></span>保存しました';
         root.append(toast);
-        const reduced = ctx.reduced();
-        const enter = reduced
-          ? [{ opacity: 0 }, { opacity: 1 }]
-          : [{ transform: OFF }, { transform: 'translateY(0)' }];
-        await settle(toast.animate(enter, { duration: ctx.dur(reduced ? 200 : IN), easing: reduced ? 'linear' : 'cubic-bezier(.2, 0, 0, 1)', fill: 'backwards' }));
-        // 押されるか、一定時間たつまで見せる
-        await Promise.race([wait(HOLD), new Promise(r => toast.addEventListener('click', r, { once: true }))]);
-        if (my !== token || !root.isConnected) return;
-        const leave = reduced
-          ? [{ opacity: 1 }, { opacity: 0 }]
-          : [{ transform: 'translateY(0)' }, { transform: OFF }];
-        await settle(toast.animate(leave, { duration: ctx.dur(reduced ? 200 : OUT), easing: reduced ? 'linear' : 'cubic-bezier(.4, 0, 1, 1)', fill: 'forwards' }));
-        toast.remove();
+        await showNotice({
+          ctx, el: toast, off: OFF, inMs: IN, inEase: 'cubic-bezier(.2, 0, 0, 1)', outMs: OUT,
+          // 押されるか、一定時間たつまで見せる
+          hold: () => Promise.race([wait(HOLD), new Promise(r => toast.addEventListener('click', r, { once: true }))]),
+          alive: () => my === token && root.isConnected,
+        });
       };
       return { run };
     },
@@ -877,11 +915,7 @@ toast.remove();`,
     desc: '画面の上端から通知が降りてきて、わずかに弾んで止まる。数秒見せてから上へ戻って消える。時間は降りる長さで、戻る長さは250ms、見せる時間は2.5秒。',
     setup(stage, ctx) {
       const IN = 400, OUT = 250, HOLD = 2500;
-      stage.innerHTML = `
-        <div class="ntf">
-          <div class="ntf-row"></div><div class="ntf-row"></div><div class="ntf-row"></div><div class="ntf-row"></div>
-        </div>`;
-      const root = q(stage, '.ntf');
+      const root = mountNoticeStage(stage);
       const { wait } = ctx;
       let token = 0;
 
@@ -893,18 +927,11 @@ toast.remove();`,
         banner.setAttribute('role', 'status');
         banner.innerHTML = '<strong>新着のお知らせ</strong><span>3件の更新があります</span>';
         root.append(banner);
-        const reduced = ctx.reduced();
-        const enter = reduced
-          ? [{ opacity: 0 }, { opacity: 1 }]
-          : [{ transform: 'translateY(calc(-100% - 10px))' }, { transform: 'translateY(0)' }];
-        await settle(banner.animate(enter, { duration: ctx.dur(reduced ? 200 : IN), easing: reduced ? 'linear' : 'cubic-bezier(.22, 1.2, .36, 1)', fill: 'backwards' }));
-        await wait(HOLD);
-        if (my !== token || !root.isConnected) return;
-        const leave = reduced
-          ? [{ opacity: 1 }, { opacity: 0 }]
-          : [{ transform: 'translateY(0)' }, { transform: 'translateY(calc(-100% - 10px))' }];
-        await settle(banner.animate(leave, { duration: ctx.dur(reduced ? 200 : OUT), easing: reduced ? 'linear' : 'cubic-bezier(.4, 0, 1, 1)', fill: 'forwards' }));
-        banner.remove();
+        await showNotice({
+          ctx, el: banner, off: 'translateY(calc(-100% - 10px))', inMs: IN, inEase: 'cubic-bezier(.22, 1.2, .36, 1)', outMs: OUT,
+          hold: () => wait(HOLD),
+          alive: () => my === token && root.isConnected,
+        });
       };
       return { run };
     },
@@ -955,18 +982,14 @@ banner.remove();`,
     desc: 'ベルのアイコンの件数バッジが、数字が変わるたびに小さな状態から弾んで現れる。件数は1秒ごとに1→2→3→4と増え、最後に少し見せて戻る。',
     setup(stage, ctx) {
       const POP = 400, STEP = 1000, HOLD = 800;
-      stage.innerHTML = `
-        <div class="ntf">
+      const root = mountNoticeStage(stage, `
           <div class="ntf-head">
             <strong>受信箱</strong>
             <span class="ntf-bell" aria-label="通知">
               <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path fill="currentColor" d="M12 3a6 6 0 0 0-6 6v3.5L4 16v1h16v-1l-2-3.5V9a6 6 0 0 0-6-6zm0 18a2.5 2.5 0 0 0 2.4-2H9.6A2.5 2.5 0 0 0 12 21z"/></svg>
               <span class="ntf-badge" role="status">1</span>
             </span>
-          </div>
-          <div class="ntf-row"></div><div class="ntf-row"></div><div class="ntf-row"></div><div class="ntf-row"></div>
-        </div>`;
-      const root = q(stage, '.ntf');
+          </div>`);
       const badge = q(stage, '.ntf-badge');
       const { wait } = ctx;
       let token = 0;
@@ -1033,7 +1056,6 @@ banner.remove();`,
     easing: 'cubic-bezier(.2, 0, 0, 1) / cubic-bezier(.65, 0, .35, 1)',
     desc: '縦置きの本が横に並ぶ棚から1冊を選ぶと、背表紙の面を向いた本が、縦軸で回りながらオーバーレイの中央に持ち上がって表紙が正面に来て、表紙が開いて中身の要素が順に現れる。閉じるボタン・背景・Esc で、逆の順に（表紙を閉じ、縦軸で回って背表紙の面になりながら）棚の元の位置へ収まる。時間は開く全体の長さ（背表紙から回って持ち上がる500ms → 表紙の回転600ms → 中身の要素が80ms間隔）で、デモ全体は約4秒。',
     setup(stage, ctx) {
-      const LIFT = 'cubic-bezier(.2, 0, 0, 1)';       // 持ち上げ・中身の出現
       const INOUT = 'cubic-bezier(.65, 0, .35, 1)';   // 表紙の回転
       const BOOKS = [
         { title: '光の設計', author: '青木', color: '#8c2f39', h: 140, ch: ['窓のかたち', '朝の光', '影の長さ'], note: '朝の光は、窓の高さで表情を変える。低い窓は床を、高い窓は壁を照らす。' },
@@ -1111,13 +1133,11 @@ banner.remove();`,
         // 押した背表紙が inert になってフォーカスが失われないよう、先に閉じるボタンへ移す
         if (focus) closeBtn.focus({ preventScroll: true });
         const items = qa(page, '.reveal');
-        if (reduced) {
-          // 動きを減らす: 開いた状態（表紙なし・中身あり）を、オーバーレイごとフェードで表示する。不透明度だけ
-          return playToEnd([anim(overlay, [{ opacity: 0 }, { opacity: 1 }], 250, 0, 'linear')]);
-        }
+        // 動きを減らす: 開いた状態（表紙なし・中身あり）を、オーバーレイごとフェードで表示する。不透明度だけ
+        const fades = openOverlayFades(anim, { overlay, bg, closeBtn }, reduced);
+        if (reduced) return playToEnd(fades);
         return playToEnd([
-          anim(bg, [{ opacity: 0 }, { opacity: 1 }], 250, 0, LIFT),
-          anim(closeBtn, [{ opacity: 0 }, { opacity: 1 }], 250, 0, LIFT),
+          ...fades,
           // 背表紙の面を向いた姿勢から、縦軸で回りながら持ち上がり、表紙の面が正面に来る
           anim(book, [{ transform: poseOf(i) }, { transform: 'none' }], 500, 0, INOUT),
           anim(front, [{ transform: 'rotateY(90deg)', visibility: 'hidden' }, { transform: 'rotateY(0deg)', visibility: 'visible' }], 500, 0, INOUT),
@@ -1288,7 +1308,6 @@ async function closeIt(spine, bookHeight) {
     easing: 'cubic-bezier(.2, 0, 0, 1) / cubic-bezier(.3, .1, .2, 1)',
     desc: '裏向きのカードが並ぶ中から1枚を選ぶと、そのカードが右へ8pxほど滑りながらフェードアウトして消える。そのあと、オーバーレイの中央へ、同じカードが上から降りながら縦軸でゆっくり2回転して現れる（降りる1000ms・回転1800ms）。閉じるボタン・背景・Esc で、カードが少し上へ消え、元の位置に伏せたカードが戻る。デモ全体は約4.5秒。',
     setup(stage, ctx) {
-      const LIFT = 'cubic-bezier(.2, 0, 0, 1)';       // 滑って消える・降りる・フェード
       const SPIN = 'cubic-bezier(.3, .1, .2, 1)';     // 回転: 勢いよく回り、ゆっくり止まる
       const SLIDE = 8;                                // 消えるときに右へ滑る距離（px）
       const ICONS = {
@@ -1356,16 +1375,15 @@ async function closeIt(spine, bookHeight) {
         // 2. 消えたあとに、オーバーレイの中央へ出す
         overlay.classList.add('is-open');
         if (focus) closeBtn.focus({ preventScroll: true });
-        return playToEnd(reduced
-          ? [anim(overlay, [{ opacity: 0 }, { opacity: 1 }], 250, 0, 'linear')]
-          : [
-              anim(bg, [{ opacity: 0 }, { opacity: 1 }], 250, 0, LIFT),
-              anim(closeBtn, [{ opacity: 0 }, { opacity: 1 }], 250, 0, LIFT),
-              // 上から降りる。見え始めは早く、位置はゆっくり落ち着く
-              anim(drop, [{ transform: 'translateY(-180px)', opacity: 0 }, { opacity: 1, offset: .3 }, { transform: 'none', opacity: 1 }], 1000, 0, LIFT),
-              // 縦軸で2回転（720°）。降りきったあともしばらく回り、ゆっくり止まる
-              anim(body, [{ transform: 'rotateY(0deg)' }, { transform: 'rotateY(720deg)' }], 1800, 0, SPIN),
-            ]);
+        const fades = openOverlayFades(anim, { overlay, bg, closeBtn }, reduced);
+        if (reduced) return playToEnd(fades);
+        return playToEnd([
+          ...fades,
+          // 上から降りる。見え始めは早く、位置はゆっくり落ち着く
+          anim(drop, [{ transform: 'translateY(-180px)', opacity: 0 }, { opacity: 1, offset: .3 }, { transform: 'none', opacity: 1 }], 1000, 0, LIFT),
+          // 縦軸で2回転（720°）。降りきったあともしばらく回り、ゆっくり止まる
+          anim(body, [{ transform: 'rotateY(0deg)' }, { transform: 'rotateY(720deg)' }], 1800, 0, SPIN),
+        ]);
       };
 
       const close = async (i, { reduced }) => {
