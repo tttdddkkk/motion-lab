@@ -18,6 +18,12 @@ const frame = () => new Promise(r => requestAnimationFrame(() => r(undefined)));
 /* 検証用の ctx。時間を 1/4 にして、再生を速く終わらせる */
 const fastCtx = reduced => makeCtx({ rate: () => 4, reduced: () => reduced });
 
+/* ctx を作って再生を始め、1フレーム待つ（要素の寸法が決まってから検証するため）。再生が完了するのは待たない */
+const startDemo = async (motion, stage, reduced = false) => {
+  motion.setup(stage, fastCtx(reduced)).run().catch(() => {});
+  await frame();
+};
+
 /* stage の中のアニメーションをすべて止める（自動再生や前の検証の残りを消す） */
 const cancelAll = stage => stage.getAnimations({ subtree: true }).forEach(a => a.cancel());
 
@@ -75,8 +81,7 @@ async function checkSeekBar({ motion, stage, step }) {
   });
 
   await step('シークバーを動かすと、表示が時刻に合わせて変わる', async () => {
-    motion.setup(stage, fastCtx(false)).run().catch(() => {});
-    await frame();
+    await startDemo(motion, stage, false);
     // setup で中身が作り直されるため、要素は取り直す
     const range = stage.querySelector('input[type="range"]');
     const item = stage.querySelector('.flow-item, [data-seek-probe]');
@@ -169,8 +174,7 @@ const EXTRA_STEPS = {
 
   'flow-seek-vertical': async ({ motion, stage, step }) => {
     await step('縦: 折り返した文字が重ならず、終了時には枠の外へ出きる', async () => {
-      motion.setup(stage, fastCtx(false)).run().catch(() => {});
-      await frame();
+      await startDemo(motion, stage, false);
       const range = stage.querySelector('input[type="range"]');
       const frameEl = stage.querySelector('.flow-frame');
       const items = [...stage.querySelectorAll('.flow-item')];
@@ -230,8 +234,7 @@ const EXTRA_STEPS = {
         const root = stage.parentElement;
         if (height) root.style.height = `${height}px`;
         try {
-          motion.setup(stage, fastCtx(true)).run().catch(() => {});
-          await frame();
+          await startDemo(motion, stage, true);
           const range = stage.querySelector('input[type="range"]');
           const area = stage.querySelector('.flow-frame').getBoundingClientRect();
           const items = [...stage.querySelectorAll('.flow-item')];
@@ -286,15 +289,13 @@ const EXTRA_STEPS = {
 
   'ticker': async ({ motion, stage, step }) => {
     await step('ティッカー・動きを減らす: 流す用の文字列は隠れ、1件ずつの文字だけが見える', async () => {
-      motion.setup(stage, fastCtx(true)).run().catch(() => {});
-      await frame();
+      await startDemo(motion, stage, true);
       await expect(getComputedStyle(stage.querySelector('.tx-track')).display).toBe('none');
       await expect(getComputedStyle(stage.querySelector('.tx-static')).display).not.toBe('none');
       cancelAll(stage);
     });
     await step('ティッカー・通常: 1件ずつの文字は隠れ、流す用の文字列が見える', async () => {
-      motion.setup(stage, fastCtx(false)).run().catch(() => {});
-      await frame();
+      await startDemo(motion, stage, false);
       await expect(getComputedStyle(stage.querySelector('.tx-track')).display).not.toBe('none');
       await expect(getComputedStyle(stage.querySelector('.tx-static')).display).toBe('none');
       cancelAll(stage);

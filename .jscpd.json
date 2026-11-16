@@ -1,0 +1,10 @@
+{
+  "path": ["motions", "stories", "tests"],
+  "format": ["javascript"],
+  "minLines": 4,
+  "minTokens": 40,
+  "threshold": 0,
+  "reporters": ["console"],
+  "noTips": true,
+  "ignore": ["**/types.js"]
+}

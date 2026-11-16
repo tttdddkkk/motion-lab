@@ -6,12 +6,14 @@
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
     "typecheck": "tsc -p .",
+    "dup": "jscpd",
     "test": "vitest run"
   },
   "devDependencies": {
     "@storybook/addon-vitest": "^10.6.7",
     "@storybook/html-vite": "^10.6.7",
     "@vitest/browser-playwright": "^5.1.0",
+    "jscpd": "5.4.2",
     "playwright": "^1.65.0",
     "storybook": "^10.6.7",
     "typescript": "^7.0.2",
