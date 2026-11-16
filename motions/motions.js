@@ -7,6 +7,7 @@
    ctx.reduced()  「動きを減らす」がONか
    ctx は makeCtx で作る（ビューアとストーリーで共通）。
    ============================================================ */
+import { q, qa } from './dom.js';
 
 /**
  * モーションに渡す ctx を作る。rate は再生速度を返す関数（ビューアで途中から変わるため、値ではなく関数）。
@@ -20,18 +21,6 @@ export function makeCtx({ rate = () => 1, reduced = () => false } = {}) {
 
 /* アニメーションの終了を待つ。cancel されても例外にしない */
 const settle = animation => animation.finished.catch(() => {});
-
-/* 要素を1つ取る。なければ、何を探したかが分かる例外にする（null のまま進めない） */
-function q(root, selector) {
-  const el = root.querySelector(selector);
-  if (!el) throw new Error(`要素が見つからない: ${selector}`);
-  return /** @type {HTMLElement} */ (el);
-}
-
-/* 要素をすべて配列で取る */
-function qa(root, selector) {
-  return /** @type {HTMLElement[]} */ ([...root.querySelectorAll(selector)]);
-}
 
 
 /* 流れる文字+シークの共通実装。vertical で横（右→左）と縦（下→上）を切り替える。
