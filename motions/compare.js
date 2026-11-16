@@ -7,6 +7,8 @@
    DOM に依存しない。tests/compare.test.js でデータの整合を検査する。
    ============================================================ */
 
+import { LEAVE_EASE, TOAST_TIMING } from './tokens.js';
+
 export const SPRING = 'cubic-bezier(.34, 1.56, .64, 1)';
 
 /* 調整 UI のイージング候補（値はそのまま WAAPI の easing に渡す） */
@@ -51,7 +53,6 @@ const TOAST_SLIDE = {
   left: [{ transform: 'translateX(calc(-100% - 16px))' }, { transform: 'translateX(0)' }],
   right: [{ transform: 'translateX(calc(100% + 16px))' }, { transform: 'translateX(0)' }]
 };
-const TOAST_EXIT_EASE = 'cubic-bezier(.4, 0, 1, 1)';
 const MOVE = [{ transform: 'translateX(-60px)' }, { transform: 'translateX(60px)' }];
 
 /* stage ごとのトラック生成。v: バリアント, p: 調整を反映した params */
@@ -205,7 +206,7 @@ const BUILDERS = {
     if (!keyframes) throw new Error(`unknown toast: ${v.mode} / ${p.from}`);
     return [
       track('toast', keyframes, { duration: p.duration, easing: p.easing }, { main: true }),
-      track('toast', [...keyframes].reverse(), { duration: p.out, delay: p.duration + p.hold, easing: TOAST_EXIT_EASE, fill: 'forwards' })
+      track('toast', [...keyframes].reverse(), { duration: p.out, delay: p.duration + p.hold, easing: LEAVE_EASE, fill: 'forwards' })
     ];
   },
 
@@ -221,9 +222,9 @@ const BUILDERS = {
 const PRESS = { duration: 200, easing: 'ease-out', scale: .95, hold: 0 };
 const SCREEN = { duration: 300, easing: 'ease-out' };
 const BOX = { duration: 500, easing: 'ease-out', delay: 0 };
-/* モーション定義の toast と同じ値（入る 300ms・見せる 2.5s・出る 250ms）。変えるときは両方を合わせる */
+/* トーストの基準のパラメータ。時間とイージングは、モーション定義の toast と共有する（tokens.js） */
 /** @type {import('./types.js').CompareParams} */
-const TOAST = { duration: 300, easing: 'cubic-bezier(.2, 0, 0, 1)', hold: 2500, out: 250, from: 'bottom' };
+const TOAST = { duration: TOAST_TIMING.in, easing: TOAST_TIMING.inEase, hold: TOAST_TIMING.hold, out: TOAST_TIMING.out, from: 'bottom' };
 const { from: _from, ...TOAST_FADE_PARAMS } = TOAST;   // フェードは方向を持たない
 
 /** @type {import('./types.js').CompareGroup[]} */
