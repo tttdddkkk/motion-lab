@@ -1,6 +1,13 @@
 import { expect, test } from 'vitest';
 import { COMPARE_GROUPS, SECTIONS, PAIR_SECTION, buildTracks, formatParams, toWaapiJson } from '../motions/compare.js';
 
+/* id からグループを取る。なければテストを失敗させる */
+const groupOf = id => {
+  const g = COMPARE_GROUPS.find(x => x.id === id);
+  if (!g) throw new Error(`グループがない: ${id}`);
+  return g;
+};
+
 const variants = COMPARE_GROUPS.flatMap(g => g.variants.map(v => ({ g, v })));
 const TARGETS = new Set(['btn', 'ripple', 'incoming', 'outgoing', 'items', 'box', 'reveal', 'toast']);
 /* アニメーションなし（mode: 'none'）は時間 0 で切り替える。時間とイージングの検査は別のテストで行う */
@@ -70,7 +77,7 @@ test('アニメーションなしは、すべてのトラックが時間 0 で�
 });
 
 test('通知の方向差は from だけが違う', () => {
-  const g = COMPARE_GROUPS.find(x => x.id === 'd-dir');
+  const g = groupOf('d-dir');
   const strip = v => ({ ...v.params, from: '' });
   for (const v of g.variants) expect(strip(v)).toEqual(strip(g.variants[0]));
   expect(new Set(g.variants.map(v => v.params.from)).size).toBe(g.variants.length);
@@ -78,7 +85,7 @@ test('通知の方向差は from だけが違う', () => {
 
 test('速度差・時間差のバリアントは duration だけが違う', () => {
   for (const id of ['a-speed', 'b-time']) {
-    const g = COMPARE_GROUPS.find(x => x.id === id);
+    const g = groupOf(id);
     const strip = v => ({ ...v.params, duration: 0 });
     for (const v of g.variants) expect(strip(v)).toEqual(strip(g.variants[0]));
   }
