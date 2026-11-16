@@ -10,6 +10,7 @@ export const BUTTON_MOTIONS = [
     feel: '弾む・軽快',
     use: '主要ボタン / タップ',
     ms: 450,
+    msLabel: '押して戻るまでの全体',
     easing: 'cubic-bezier(.34, 1.56, .64, 1)',
     desc: '押すと少し沈み、離すとオーバーシュートして戻る。',
     setup(stage, ctx) {
@@ -61,6 +62,7 @@ export const BUTTON_MOTIONS = [
     feel: 'なめらか・触覚的',
     use: 'タップ位置の強調',
     ms: 600,
+    msLabel: '波紋が広がって消えるまで',
     easing: 'cubic-bezier(.2, 0, 0, 1)',
     desc: 'タップした位置から波紋が広がって消える。',
     setup(stage, ctx) {

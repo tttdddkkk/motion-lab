@@ -37,7 +37,8 @@
  * @property {string} name
  * @property {string} feel  印象ワード
  * @property {string} use  使いどころの一言
- * @property {number} ms  代表となる時間（意味はモーションごとに違う。desc を参照）
+ * @property {number} ms  代表となる時間（ms）。何の時間かはモーションごとに違うので、msLabel で示す
+ * @property {string} msLabel  ms が何の時間か。例:「1周」「1文字ごとの間隔」。ビューアが時間の隣に表示する
  * @property {string} easing
  * @property {string} desc
  * @property {(stage: HTMLElement, ctx: Ctx) => MotionInstance} setup

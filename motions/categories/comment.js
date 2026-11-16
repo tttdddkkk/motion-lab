@@ -127,6 +127,7 @@ export const COMMENT_MOTIONS = [
     feel: '連続・にぎやか',
     use: 'タイムライン連動のテキスト',
     ms: 3000,
+    msLabel: '1つの文字が枠を横切る',
     easing: 'linear',
     desc: '映像の下の枠で文字が右から左へ流れる。シークバーで進めたり戻したりできる。時間は1つの文字が枠を横切る長さで、全体は約7.7秒。',
     setup(stage, ctx) { return flowSeek(stage, ctx, { vertical: false }); },
@@ -187,6 +188,7 @@ range.addEventListener('change', () => {
     feel: '連続・落ち着き',
     use: '縦長の枠での実況・字幕',
     ms: 4000,
+    msLabel: '1つの文字が枠を横切る',
     easing: 'linear',
     desc: '映像の横の枠で文字が下から上へ流れる。シークバーで進めたり戻したりできる。「流れる文字+シーク」から方向だけを縦にしたもので、枠が狭いため長い文字は折り返す。時間は1つの文字が枠を横切る長さで、全体は約9秒（枠の高さで少し変わる）。文字どうしの見た目の隙間がそろうよう、前の文字が2行のときは次の文字を少し遅らせて出す。',
     setup(stage, ctx) { return flowSeek(stage, ctx, { vertical: true }); },
@@ -260,6 +262,7 @@ range.addEventListener('change', () => {
     feel: '軽快・弾む',
     use: 'チャット・メッセージUIの新着表示',
     ms: 450,
+    msLabel: '1つの吹き出しが現れる',
     easing: 'cubic-bezier(.34, 1.56, .64, 1)',
     desc: '映像の下の枠で、吹き出しが下からポコっと現れ、先に出た吹き出しを上へ押し上げる。古いものは枠の上へ出ていく。時間は1つの吹き出しが現れる長さで、全体は約5.9秒。',
     setup(stage, ctx) {

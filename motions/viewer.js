@@ -110,6 +110,7 @@ function renderInfo() {
     <dt>感触</dt><dd>${m.feel}</dd>
     <dt>用途</dt><dd>${m.use}</dd>
     <dt>時間</dt><dd>${durationText(m.ms)}</dd>
+    <dt>何の時間</dt><dd>${m.msLabel}</dd>
     <dt>イージング</dt><dd><code>${m.easing}</code></dd>`;
 }
 
