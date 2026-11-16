@@ -222,9 +222,11 @@ const PRESS = { duration: 200, easing: 'ease-out', scale: .95, hold: 0 };
 const SCREEN = { duration: 300, easing: 'ease-out' };
 const BOX = { duration: 500, easing: 'ease-out', delay: 0 };
 /* モーション定義の toast と同じ値（入る 300ms・見せる 2.5s・出る 250ms）。変えるときは両方を合わせる */
+/** @type {import('./types.js').CompareParams} */
 const TOAST = { duration: 300, easing: 'cubic-bezier(.2, 0, 0, 1)', hold: 2500, out: 250, from: 'bottom' };
 const { from: _from, ...TOAST_FADE_PARAMS } = TOAST;   // フェードは方向を持たない
 
+/** @type {import('./types.js').CompareGroup[]} */
 export const COMPARE_GROUPS = [
   /* ---------- A. ボタン押下 ---------- */
   {

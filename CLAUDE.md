@@ -7,10 +7,11 @@
 - 作業を始める前に `git fetch origin main` を実行し、ブランチが main の最新から切られていることを確認する（クローンが古いことがある）。古ければ main を取り込んでから書き始める。モーションの追加は `motions.js` / `motions.css` / ストーリーの末尾に集まるため、古いまま作業すると他の PR と衝突しやすい
 - ワークツリー（`claude -w` / `.claude/worktrees/`）では、最初に `npm ci` を実行する。`node_modules` は共有していない
 - ビューアの動作確認は `file://` ではなくローカルサーバー経由で行う（ES Modules のため `file://` では読み込めない）
-- コミット前に `npm test` を実行する。初回のみ `npx playwright install chromium` が必要
+- コミット前に `npm run typecheck` と `npm test` を実行する。`npm test` は初回のみ `npx playwright install chromium` が必要
 
 ## コードからは読み取れない決まり
 
+- 型は JSDoc で書く（`motions/types.js`）。ビューアは `.ts` にしない（ADR 0018）。`MOTIONS` と差分比較のデータの形を変えたら、`types.js` も合わせる
 - `MOTIONS` の `code.css` / `code.waapi` / `code.reduced` は表示用の文字列。`setup` の実装を変えたら手で合わせる。テストでは検出できない
 - すべてのモーションに「動きを減らす」版を用意する。その版では transform と clip-path を使わない（テストで強制している）
 - デモとコードはすべてオリジナルで作る。案件由来のコードや、外部サイトのデモ・コードは使わない

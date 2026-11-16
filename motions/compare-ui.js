@@ -27,7 +27,19 @@ const clipSupported = () => {
   try { return CSS.supports('clip-path', 'circle(0% at 50% 50%)'); } catch { return false; }
 };
 
+/**
+ * 画面に出している1枚のカード（1バリアント）の状態。
+ * @typedef {object} Card
+ * @property {import('./types.js').CompareGroup} group
+ * @property {import('./types.js').CompareVariant} variant
+ * @property {HTMLElement} el
+ * @property {HTMLElement} stage
+ * @property {{ duration?: number, easing?: string }} over  調整 UI で上書きした値
+ * @property {() => void} [refresh]  パラメータ表示を、調整後の値で更新する
+ */
+
 export function mountCompare({ root, nav }) {
+  /** @type {{ tag: string | null, override: Map<string, unknown>, cards: Card[] }} */
   const state = { tag: null, override: new Map(), cards: [] };
   const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
   let forcePlay = false;
@@ -203,6 +215,7 @@ export function mountCompare({ root, nav }) {
     r.onchange = () => {
       const gid = r.dataset.group;
       const g = COMPARE_GROUPS.find(x => x.id === gid);
+      if (!g) return;
       const v = g.variants[Number(r.value)];
       root.querySelector(`[data-picked="${gid}"]`).textContent = `選択: ${LETTERS[Number(r.value)]}「${v.name}」`;
     };

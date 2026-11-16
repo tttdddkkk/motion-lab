@@ -13,7 +13,7 @@ export default {
 
 /* ---- 検証で使う共通の道具 ---- */
 
-const frame = () => new Promise(r => requestAnimationFrame(() => r()));
+const frame = () => new Promise(r => requestAnimationFrame(() => r(undefined)));
 
 /* 検証用の ctx。時間を 1/4 にして、再生を速く終わらせる */
 const fastCtx = reduced => makeCtx({ rate: () => 4, reduced: () => reduced });

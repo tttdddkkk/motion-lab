@@ -21,12 +21,14 @@
 - `index.html` … スマホ向けビューア。「差分比較」への切り替え（`#compare`）を含む
 - `motions/compare.js` … 差分比較のデータ（バリアント定義とトラック生成）。`MOTIONS` とは別で、ストーリーは不要。`motions/compare-ui.js` が描画する（ADR 0012）
 - `stories/motions.stories.js` … 1モーション1行のストーリーと振る舞いテスト（`play`）
+- `motions/types.js` … JSDoc の型定義（`Motion` / `Ctx` / 差分比較のバリアントなど）。実行時には読まれない（ADR 0018）
 - `tests/` … `MOTIONS` とストーリーの対応漏れ、差分比較データの整合を検出するテスト
 
 ## 使い方
 
 - ビューア: ES Modules を使うため `file://` では開けない。GitHub Pages か、`npx serve` などのローカルサーバー経由で開く
 - Storybook: `npm install` → `npm run storybook`
+- 型検査: `npm run typecheck`
 - テスト: `npm test`（初回のみ `npx playwright install chromium`）
 
 ## モーションを追加する
@@ -38,7 +40,7 @@
 
 | 設定 | ツール | 用途 |
 | --- | --- | --- |
-| CI | GitHub Actions（`.github/workflows/ci.yml`） | push / PR 時に `npm ci` → `npm test` → `npm run build-storybook` |
+| CI | GitHub Actions（`.github/workflows/ci.yml`） | push / PR 時に `npm ci` → `npm run typecheck` → `npm test` → `npm run build-storybook` |
 | 依存更新 | Dependabot（`.github/dependabot.yml`） | 毎週月曜に npm と Actions の更新 PR。公開から7日（major は14日）経ったバージョンだけ取り込む |
 | 脆弱性対応 | Dependabot alerts / security updates | GitHub のリポジトリ設定で有効化する |
 | プレビュー | Netlify Deploy Preview（`netlify.toml`） | PR ごとにビューアのプレビューURLを発行（ADR 0009 / 0010） |

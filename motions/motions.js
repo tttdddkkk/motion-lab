@@ -8,7 +8,11 @@
    ctx は makeCtx で作る（ビューアとストーリーで共通）。
    ============================================================ */
 
-/* モーションに渡す ctx を作る。rate は再生速度を返す関数（ビューアで途中から変わるため、値ではなく関数） */
+/**
+ * モーションに渡す ctx を作る。rate は再生速度を返す関数（ビューアで途中から変わるため、値ではなく関数）。
+ * @param {{ rate?: () => number, reduced?: () => boolean }} [options]
+ * @returns {import('./types.js').Ctx}
+ */
 export function makeCtx({ rate = () => 1, reduced = () => false } = {}) {
   const dur = ms => ms / rate();
   return { dur, reduced, wait: ms => new Promise(resolve => setTimeout(resolve, dur(ms))) };
@@ -16,6 +20,18 @@ export function makeCtx({ rate = () => 1, reduced = () => false } = {}) {
 
 /* アニメーションの終了を待つ。cancel されても例外にしない */
 const settle = animation => animation.finished.catch(() => {});
+
+/* 要素を1つ取る。なければ、何を探したかが分かる例外にする（null のまま進めない） */
+function q(root, selector) {
+  const el = root.querySelector(selector);
+  if (!el) throw new Error(`要素が見つからない: ${selector}`);
+  return /** @type {HTMLElement} */ (el);
+}
+
+/* 要素をすべて配列で取る */
+function qa(root, selector) {
+  return /** @type {HTMLElement[]} */ ([...root.querySelectorAll(selector)]);
+}
 
 
 /* 流れる文字+シークの共通実装。vertical で横（右→左）と縦（下→上）を切り替える。
@@ -53,9 +69,9 @@ function flowSeek(stage, ctx, { vertical }) {
         `<span class="flow-item"${vertical ? '' : ` style="top:${8 + i.lane * 28}px"`}>${i.text}</span>`).join('')}</div>
       ${SEEK_BAR}
     </div>`;
-  const root = stage.querySelector('.flow');
-  const frame = stage.querySelector('.flow-frame');
-  const els = [...stage.querySelectorAll('.flow-item')];
+  const root = q(stage, '.flow');
+  const frame = q(stage, '.flow-frame');
+  const els = qa(stage, '.flow-item');
 
   // 縦・動きを減らす: 各文字の top を決める。表示時間が重なる文字どうしだけを避ける
   const packSlots = () => {
@@ -137,10 +153,19 @@ function flowSeek(stage, ctx, { vertical }) {
 /* シークバー付きの再生（テキストの字幕・同期ハイライトで共通）。
    root の中の .flow-play / .flow-range を使う。makeAnims() が返すアニメーションと
    時計（root.animate([])）の currentTime をそろえて、進めたり戻したりする */
+/**
+ * @param {HTMLElement} root
+ * @param {import('./types.js').Ctx} ctx
+ * @param {() => number} total  全体の長さ（ms）。縦の流れる文字のように、再生のたびに変わるものがあるため関数で渡す
+ * @param {() => Animation[]} makeAnims
+ * @returns {import('./types.js').MotionInstance}
+ */
 function withSeek(root, ctx, total, makeAnims) {
-  const playBtn = root.querySelector('.flow-play');
-  const range = root.querySelector('.flow-range');
+  const playBtn = q(root, '.flow-play');
+  const range = /** @type {HTMLInputElement} */ (q(root, '.flow-range'));
+  /** @type {Animation[]} */
   let anims = [];
+  /** @type {Animation | null} */
   let clock = null;
   let dragging = false;
   let wasPlaying = false;
@@ -158,7 +183,7 @@ function withSeek(root, ctx, total, makeAnims) {
   // シークバーの表示更新は再生中だけ回し、二重に起動しない
   const tick = () => {
     if (!clock || clock.playState === 'idle') { ticking = false; return; }
-    if (!dragging) range.value = Math.round(clock.currentTime / ctx.dur(total()) * 1000);
+    if (!dragging) range.value = String(Math.round(Number(clock.currentTime) / ctx.dur(total()) * 1000));
     setLabel();
     ticking = clock.playState === 'running';
     if (ticking) requestAnimationFrame(tick);
@@ -191,7 +216,7 @@ function withSeek(root, ctx, total, makeAnims) {
     wasPlaying = isPlaying();
     anims.forEach(a => a.pause());
   });
-  range.addEventListener('input', () => seek(range.value / 1000));
+  range.addEventListener('input', () => seek(Number(range.value) / 1000));
   range.addEventListener('change', () => {
     if (dragging && wasPlaying) {
       anims.forEach(a => a.play());
@@ -203,7 +228,7 @@ function withSeek(root, ctx, total, makeAnims) {
 
   const run = () => {
     build();
-    return clock.finished.then(() => setLabel());
+    return /** @type {Animation} */ (clock).finished.then(() => setLabel());
   };
   // 再生前でも時刻0の状態で表示し、シークできるようにする（位置の計算に DOM の寸法が要る）
   requestAnimationFrame(() => {
@@ -221,6 +246,7 @@ const SEEK_BAR = `
     <input class="flow-range" type="range" min="0" max="1000" value="0" aria-label="再生位置">
   </div>`;
 
+/** @type {import('./types.js').Motion[]} */
 export const MOTIONS = [
   {
     id: 'press-bounce',
@@ -233,7 +259,7 @@ export const MOTIONS = [
     desc: '押すと少し沈み、離すとオーバーシュートして戻る。',
     setup(stage, ctx) {
       stage.innerHTML = '<button class="demo-btn">購入する</button>';
-      const btn = stage.firstElementChild;
+      const btn = q(stage, '.demo-btn');
       const run = () => {
         if (ctx.reduced()) {
           return btn.animate(
@@ -284,7 +310,7 @@ export const MOTIONS = [
     desc: 'タップした位置から波紋が広がって消える。',
     setup(stage, ctx) {
       stage.innerHTML = '<button class="demo-btn">タップしてね</button>';
-      const btn = stage.firstElementChild;
+      const btn = q(stage, '.demo-btn');
       const run = (x, y) => {
         const r = btn.getBoundingClientRect();
         const cx = x ?? r.width / 2, cy = y ?? r.height / 2;
@@ -369,7 +395,7 @@ export const MOTIONS = [
           <h3>詳細</h3>
           <div class="hero"></div><div class="row"></div><div class="row"></div>
         </div>`;
-      const next = stage.querySelector('.screen.b');
+      const next = q(stage, '.screen.b');
       next.style.clipPath = `circle(0% at ${origin})`;
       const { wait } = ctx;
       const run = async () => {
@@ -575,13 +601,13 @@ range.addEventListener('change', () => {
           <div class="chat-media"></div>
           <div class="chat-frame" aria-live="polite"></div>
         </div>`;
-      const frame = stage.querySelector('.chat-frame');
+      const frame = q(stage, '.chat-frame');
       const { wait } = ctx;
       let token = 0;
 
       // 吹き出しを1つ足す。押し上げは「足す前後の位置の差」から作る（FLIP）
       const add = text => {
-        const before = [...frame.children].map(el => el.offsetTop);
+        const before = qa(frame, ':scope > *').map(el => el.offsetTop);
         const bubble = document.createElement('div');
         bubble.className = 'chat-bubble';
         bubble.textContent = text;
@@ -590,7 +616,7 @@ range.addEventListener('change', () => {
           // 動きを減らす: 位置は即座に切り替え、新しい吹き出しは不透明度だけで出す
           bubble.animate([{ opacity: 0 }, { opacity: 1 }], { duration: ctx.dur(200), easing: 'linear' });
         } else {
-          [...frame.children].slice(0, -1).forEach((el, i) => {
+          qa(frame, ':scope > *').slice(0, -1).forEach((el, i) => {
             const d = before[i] - el.offsetTop;
             if (d) el.animate([{ transform: `translateY(${d}px)` }, { transform: 'translateY(0)' }],
                               { duration: ctx.dur(PUSH), easing: EASE_PUSH });
@@ -602,7 +628,7 @@ range.addEventListener('change', () => {
           );
         }
         // 枠の上に出きった吹き出しは外す（下寄せなので、残りの位置は変わらない）
-        [...frame.children].forEach(el => { if (el.offsetTop + el.offsetHeight < 0) el.remove(); });
+        qa(frame, ':scope > *').forEach(el => { if (el.offsetTop + el.offsetHeight < 0) el.remove(); });
       };
 
       const run = async () => {
@@ -683,13 +709,13 @@ range.addEventListener('change', () => {
         <div class="ntf">
           <div class="ntf-row"></div><div class="ntf-row"></div><div class="ntf-row"></div><div class="ntf-row"></div>
         </div>`;
-      const root = stage.querySelector('.ntf');
+      const root = q(stage, '.ntf');
       const { wait } = ctx;
       let token = 0;
 
       const run = async () => {
         const my = ++token;
-        root.querySelectorAll('.ntf-toast').forEach(el => el.remove());
+        qa(root, '.ntf-toast').forEach(el => el.remove());
         const toast = document.createElement('button');
         toast.type = 'button';
         toast.className = 'ntf-toast';
@@ -769,13 +795,13 @@ toast.remove();`,
         <div class="ntf">
           <div class="ntf-row"></div><div class="ntf-row"></div><div class="ntf-row"></div><div class="ntf-row"></div>
         </div>`;
-      const root = stage.querySelector('.ntf');
+      const root = q(stage, '.ntf');
       const { wait } = ctx;
       let token = 0;
 
       const run = async () => {
         const my = ++token;
-        root.querySelectorAll('.ntf-banner').forEach(el => el.remove());
+        qa(root, '.ntf-banner').forEach(el => el.remove());
         const banner = document.createElement('div');
         banner.className = 'ntf-banner';
         banner.setAttribute('role', 'status');
@@ -854,8 +880,8 @@ banner.remove();`,
           </div>
           <div class="ntf-row"></div><div class="ntf-row"></div><div class="ntf-row"></div><div class="ntf-row"></div>
         </div>`;
-      const root = stage.querySelector('.ntf');
-      const badge = stage.querySelector('.ntf-badge');
+      const root = q(stage, '.ntf');
+      const badge = q(stage, '.ntf-badge');
       const { wait } = ctx;
       let token = 0;
 
@@ -959,17 +985,17 @@ banner.remove();`,
             </div>
           </div>
         </div>`;
-      const shelf = stage.querySelector('.shelf');
-      const levels = [...stage.querySelectorAll('.shelf-level')];
-      const spines = [...stage.querySelectorAll('.spine')];
-      const overlay = stage.querySelector('.shelf-overlay');
-      const bg = stage.querySelector('.overlay-bg');
-      const closeBtn = stage.querySelector('.overlay-close');
-      const book = stage.querySelector('.book3d');
-      const cover = stage.querySelector('.book-cover');
-      const front = stage.querySelector('.book-front');
-      const face = stage.querySelector('.book-spine-face');
-      const page = stage.querySelector('.book-page');
+      const shelf = q(stage, '.shelf');
+      const levels = qa(stage, '.shelf-level');
+      const spines = qa(stage, '.spine');
+      const overlay = q(stage, '.shelf-overlay');
+      const bg = q(stage, '.overlay-bg');
+      const closeBtn = q(stage, '.overlay-close');
+      const book = q(stage, '.book3d');
+      const cover = q(stage, '.book-cover');
+      const front = q(stage, '.book-front');
+      const face = q(stage, '.book-spine-face');
+      const page = q(stage, '.book-page');
       const { wait } = ctx;
       let current = -1;     // 開いている（または開こうとしている）本
       let busy = false;     // 開閉のアニメーション中。その間の操作は受け付けない
@@ -978,7 +1004,7 @@ banner.remove();`,
       const fill = i => {
         const info = BOOKS[i];
         book.style.setProperty('--c', info.color);
-        book.style.setProperty('--k', BOOK_H / info.h);   // 背表紙の面を、棚の背表紙と同じ大きさにそろえる倍率
+        book.style.setProperty('--k', String(BOOK_H / info.h));   // 背表紙の面を、棚の背表紙と同じ大きさにそろえる倍率
         face.innerHTML = `<span class="spine-art" style="--c:${info.color};--h:${info.h}px"><span>${info.title}</span></span>`;
         cover.innerHTML = `<span class="cover-title">${info.title}</span><span class="cover-author">${info.author}</span>`;
         page.innerHTML = `
@@ -1012,7 +1038,7 @@ banner.remove();`,
         levels.forEach(l => { l.inert = true; });
         // 押した背表紙が inert になってフォーカスが失われないよう、先に閉じるボタンへ移す
         if (focus) closeBtn.focus({ preventScroll: true });
-        const items = [...page.querySelectorAll('.reveal')];
+        const items = qa(page, '.reveal');
         let anims;
         if (reduced) {
           // 動きを減らす: 開いた状態（表紙なし・中身あり）を、オーバーレイごとフェードで表示する。不透明度だけ
@@ -1039,7 +1065,7 @@ banner.remove();`,
         busy = true;
         const i = current;
         const reduced = ctx.reduced();
-        const items = [...page.querySelectorAll('.reveal')];
+        const items = qa(page, '.reveal');
         let anims;
         if (reduced) {
           anims = [anim(overlay, [{ opacity: 1 }, { opacity: 0 }], 250, 0, 'linear')];
@@ -1266,15 +1292,15 @@ async function closeIt(spine, bookHeight) {
             </div>
           </div>
         </div>`;
-      const deck = stage.querySelector('.deck');
-      const grid = stage.querySelector('.deck-grid');
-      const cards = [...stage.querySelectorAll('.tcard')];
-      const overlay = stage.querySelector('.deck-overlay');
-      const bg = stage.querySelector('.overlay-bg');
-      const closeBtn = stage.querySelector('.overlay-close');
-      const drop = stage.querySelector('.card3d');     // 上から降りる（移動と不透明度）
-      const body = stage.querySelector('.card-body');  // 縦軸で回る
-      const front = stage.querySelector('.card-front');
+      const deck = q(stage, '.deck');
+      const grid = q(stage, '.deck-grid');
+      const cards = qa(stage, '.tcard');
+      const overlay = q(stage, '.deck-overlay');
+      const bg = q(stage, '.overlay-bg');
+      const closeBtn = q(stage, '.overlay-close');
+      const drop = q(stage, '.card3d');     // 上から降りる（移動と不透明度）
+      const body = q(stage, '.card-body');  // 縦軸で回る
+      const front = q(stage, '.card-front');
       const { wait } = ctx;
       let current = -1;     // 開いている（または開こうとしている）カード
       let busy = false;     // 開閉のアニメーション中。その間の操作は受け付けない
@@ -1510,8 +1536,8 @@ async function dismiss(picked) {
             `<span${k === 0 && i === all.length - 1 ? ' data-seek-probe="opacity"' : ''}>${c}</span>`).join('')}</span>`).join('')}</p>
           ${SEEK_BAR}
         </div>`;
-      const root = stage.querySelector('.tx');
-      const caption = stage.querySelector('.tx-caption');
+      const root = q(stage, '.tx');
+      const caption = q(stage, '.tx-caption');
       const sentences = [...caption.children];
 
       return withSeek(root, ctx, () => TOTAL, () => {
@@ -1591,9 +1617,9 @@ range.addEventListener('input', () => {
           </div>
           <div class="tx-row"></div><div class="tx-row"></div><div class="tx-row"></div><div class="tx-row"></div>
         </div>`;
-      const board = stage.querySelector('.tx-board');
-      const track = stage.querySelector('.tx-track');
-      const still = stage.querySelector('.tx-static');
+      const board = q(stage, '.tx-board');
+      const track = q(stage, '.tx-track');
+      const still = q(stage, '.tx-static');
       let token = 0;
 
       const run = async () => {
@@ -1667,15 +1693,16 @@ track.animate(
           </div>
           ${SEEK_BAR}
         </div>`;
-      const root = stage.querySelector('.tx-sync');
-      const frame = stage.querySelector('.tx-sync-frame');
-      const list = stage.querySelector('.tx-lines');
+      const root = q(stage, '.tx-sync');
+      const frame = q(stage, '.tx-sync-frame');
+      const list = q(stage, '.tx-lines');
       const rows = [...list.children];
       const at = ms => Math.min(1, Math.max(0, ms / TOTAL));   // 時刻 → keyframe の offset
 
       return withSeek(root, ctx, () => TOTAL, () => {
         const reduced = ctx.reduced();
         list.classList.toggle('is-static', reduced);
+        /** @type {KeyframeAnimationOptions} */
         const opt = { duration: ctx.dur(TOTAL), easing: 'linear', fill: 'both' };
         // 行 i は i * LINE から明るくなり、次の行に移ると暗く戻る
         const anims = rows.map((el, i) => {
