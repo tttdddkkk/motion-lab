@@ -1134,9 +1134,10 @@ banner.remove();`,
         if (focus) closeBtn.focus({ preventScroll: true });
         const items = qa(page, '.reveal');
         // 動きを減らす: 開いた状態（表紙なし・中身あり）を、オーバーレイごとフェードで表示する。不透明度だけ
-        if (reduced) return playToEnd(openOverlayFades(anim, { overlay, bg, closeBtn }, true));
+        const fades = openOverlayFades(anim, { overlay, bg, closeBtn }, reduced);
+        if (reduced) return playToEnd(fades);
         return playToEnd([
-          ...openOverlayFades(anim, { overlay, bg, closeBtn }, false),
+          ...fades,
           // 背表紙の面を向いた姿勢から、縦軸で回りながら持ち上がり、表紙の面が正面に来る
           anim(book, [{ transform: poseOf(i) }, { transform: 'none' }], 500, 0, INOUT),
           anim(front, [{ transform: 'rotateY(90deg)', visibility: 'hidden' }, { transform: 'rotateY(0deg)', visibility: 'visible' }], 500, 0, INOUT),
@@ -1374,15 +1375,15 @@ async function closeIt(spine, bookHeight) {
         // 2. 消えたあとに、オーバーレイの中央へ出す
         overlay.classList.add('is-open');
         if (focus) closeBtn.focus({ preventScroll: true });
-        return playToEnd(reduced
-          ? openOverlayFades(anim, { overlay, bg, closeBtn }, true)
-          : [
-              ...openOverlayFades(anim, { overlay, bg, closeBtn }, false),
-              // 上から降りる。見え始めは早く、位置はゆっくり落ち着く
-              anim(drop, [{ transform: 'translateY(-180px)', opacity: 0 }, { opacity: 1, offset: .3 }, { transform: 'none', opacity: 1 }], 1000, 0, LIFT),
-              // 縦軸で2回転（720°）。降りきったあともしばらく回り、ゆっくり止まる
-              anim(body, [{ transform: 'rotateY(0deg)' }, { transform: 'rotateY(720deg)' }], 1800, 0, SPIN),
-            ]);
+        const fades = openOverlayFades(anim, { overlay, bg, closeBtn }, reduced);
+        if (reduced) return playToEnd(fades);
+        return playToEnd([
+          ...fades,
+          // 上から降りる。見え始めは早く、位置はゆっくり落ち着く
+          anim(drop, [{ transform: 'translateY(-180px)', opacity: 0 }, { opacity: 1, offset: .3 }, { transform: 'none', opacity: 1 }], 1000, 0, LIFT),
+          // 縦軸で2回転（720°）。降りきったあともしばらく回り、ゆっくり止まる
+          anim(body, [{ transform: 'rotateY(0deg)' }, { transform: 'rotateY(720deg)' }], 1800, 0, SPIN),
+        ]);
       };
 
       const close = async (i, { reduced }) => {
