@@ -38,7 +38,7 @@
 
 ## モーションを追加する
 
-1. `motions/categories/<カテゴリ>.js` の配列にオブジェクトを1つ足す（`id / cat / name / feel / use / ms / easing / desc / setup / code{css, waapi, reduced}`）
+1. `motions/categories/<カテゴリ>.js` の配列にオブジェクトを1つ足す（`id / cat / name / feel / use / ms / msLabel / easing / desc / setup / code{css, waapi, reduced}`。`msLabel` は `ms` が何の時間か。モーションごとに意味が違うため必須）
 2. `stories/motions.stories.js` の末尾に `export const Xxx = story('<id>');` を1行足す（忘れると `npm test` が失敗する）
 
 ## 開発環境設定

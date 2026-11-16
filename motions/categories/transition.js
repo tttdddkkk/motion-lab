@@ -10,6 +10,7 @@ export const TRANSITION_MOTIONS = [
     feel: '力強い・展開',
     use: '画面遷移 / 詳細表示',
     ms: 700,
+    msLabel: '円が広がるまで',
     easing: 'cubic-bezier(.65, 0, .35, 1)',
     desc: '画面下部から円形に広がって次の画面に切り替わる。',
     setup(stage, ctx) {
