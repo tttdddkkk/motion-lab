@@ -104,26 +104,59 @@ const until = async (condition, message) => {
 
 /* 開閉オーバーレイ（本棚・カード）の共通の操作の検証。triggerSel: 開く操作の対象、overlaySel: オーバーレイ */
 const overlayStep = (triggerSel, overlaySel) => async ({ motion, stage, step }) => {
-  await step('クリックで開き、閉じるボタンにフォーカスが移る。Esc で閉じ、フォーカスが元の対象に戻る', async () => {
-    motion.setup(stage, fastCtx(false));
+  const prepare = async reduced => {
+    motion.setup(stage, fastCtx(reduced));
     await frame();
-    const triggers = [...stage.querySelectorAll(triggerSel)];
-    const overlay = /** @type {HTMLElement} */ (stage.querySelector(overlaySel));
-    const closeBtn = /** @type {HTMLElement} */ (stage.querySelector('.overlay-close'));
-    const target = /** @type {HTMLElement} */ (triggers[1]);
-    target.focus();
-    target.click();
+    return {
+      triggers: /** @type {HTMLElement[]} */ ([...stage.querySelectorAll(triggerSel)]),
+      overlay: /** @type {HTMLElement} */ (stage.querySelector(overlaySel)),
+      bg: /** @type {HTMLElement} */ (stage.querySelector('.overlay-bg')),
+      closeBtn: /** @type {HTMLElement} */ (stage.querySelector('.overlay-close')),
+    };
+  };
+  const finished = message => until(() => stage.getAnimations({ subtree: true }).length === 0, message);
+  /* i 番目の対象をクリックして開き、開ききるまで待つ */
+  const openAt = async ({ triggers, overlay }, i) => {
+    triggers[i].focus();
+    triggers[i].click();
     // 開くアニメーションが終わるまで、2回目の操作は受け付けない
-    triggers[3].click();
+    triggers[(i + 2) % triggers.length].click();
     await until(() => overlay.classList.contains('is-open'), '開く');
-    await until(() => stage.getAnimations({ subtree: true }).length === 0, '開くアニメーションの終了');
+    await finished('開くアニメーションの終了');
+  };
+  const closers = {
+    'Esc': ({ overlay }) => overlay.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })),
+    '背景クリック': ({ bg }) => bg.click(),
+    '閉じるボタン': ({ closeBtn }) => closeBtn.click(),
+  };
+
+  for (const reduced of [false, true]) {
+    for (const [name, close] of Object.entries(closers)) {
+      await step(`${reduced ? '動きを減らす' : '通常'}: クリックで開き、${name}で閉じる。フォーカスは開いたとき閉じるボタンへ、閉じたとき元の対象へ移る`, async () => {
+        const parts = await prepare(reduced);
+        const { triggers, overlay, closeBtn } = parts;
+        await openAt(parts, 1);
+        await expect(document.activeElement).toBe(closeBtn);
+        await expect(triggers.filter(t => t.classList.contains('is-out'))).toHaveLength(1);   // 開いたのは1つだけ
+        close(parts);
+        await until(() => !overlay.classList.contains('is-open'), '閉じる');
+        await finished('閉じるアニメーションの終了');
+        await expect(document.activeElement).toBe(triggers[1]);
+        await expect(triggers.filter(t => t.classList.contains('is-out'))).toHaveLength(0);
+        cancelAll(stage);
+      });
+    }
+  }
+
+  await step('Tab を押しても、フォーカスは閉じるボタンに留まる', async () => {
+    const parts = await prepare(false);
+    const { overlay, closeBtn } = parts;
+    await openAt(parts, 1);
+    /** @type {HTMLElement} */ (document.activeElement).blur();
+    const tab = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true });
+    overlay.dispatchEvent(tab);
+    await expect(tab.defaultPrevented).toBe(true);
     await expect(document.activeElement).toBe(closeBtn);
-    await expect(triggers.filter(t => t.classList.contains('is-out'))).toHaveLength(1);   // 開いたのは1つだけ
-    overlay.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-    await until(() => !overlay.classList.contains('is-open'), '閉じる');
-    await until(() => stage.getAnimations({ subtree: true }).length === 0, '閉じるアニメーションの終了');
-    await expect(document.activeElement).toBe(target);
-    await expect(triggers.filter(t => t.classList.contains('is-out'))).toHaveLength(0);
     cancelAll(stage);
   });
 };
