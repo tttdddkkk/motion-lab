@@ -246,6 +246,92 @@ const SEEK_BAR = `
     <input class="flow-range" type="range" min="0" max="1000" value="0" aria-label="再生位置">
   </div>`;
 
+/* アニメーションを ctx の再生速度に合わせて作る。最終状態は class に持たせるため fill: 'both' */
+function makeAnim(ctx) {
+  return (el, frames, duration, delay, easing) =>
+    el.animate(frames, { duration: ctx.dur(duration), delay: ctx.dur(delay), easing, fill: 'both' });
+}
+
+/* すべてのアニメーションの終了を待ち、cancel して後片付けする。reset で中断されたら false */
+async function playToEnd(anims) {
+  try { await Promise.all(anims.map(x => x.finished)); } catch { return false; }
+  anims.forEach(x => x.cancel());
+  return true;
+}
+
+/**
+ * 開閉オーバーレイを持つモーション（本棚・カード）の共通部分。
+ * ここが持つもの: 状態（開いている項目・開閉中か・自動再生の世代）、手で操作したときの自動再生の停止、
+ * 閉じるボタン・背景・Esc・Tab の扱い、デモの再生手順（項目を開く → 見せる → 閉じる）。
+ * 何がどう動くかは、呼び出し側が open / close / reset で渡す。
+ * @param {object} p
+ * @param {import('./types.js').Ctx} p.ctx
+ * @param {HTMLElement} p.stage
+ * @param {HTMLElement} p.root  DOM から外れたら、デモの自動再生を止める
+ * @param {HTMLElement} p.overlay  開いている間だけ is-open を付ける
+ * @param {HTMLElement} p.bg  押すと閉じる背景
+ * @param {HTMLElement} p.closeBtn
+ * @param {HTMLElement[]} p.triggers  開く操作の対象（背表紙・伏せたカード）。i 番目が i 番目の項目を開く
+ * @param {(i: number, o: { reduced: boolean, focus: boolean }) => Promise<boolean>} p.open
+ *   開くアニメーションを再生する。reset で中断されたら false。focus が true なら、閉じるボタンへフォーカスを移す
+ * @param {(i: number, o: { reduced: boolean }) => Promise<boolean>} p.close  閉じるアニメーションを再生する。中断されたら false
+ * @param {() => void} p.reset  DOM を初期状態に戻す。アニメーションの cancel と overlay の is-open は、ここでは行わない
+ * @returns {import('./types.js').MotionInstance}
+ */
+function createOverlayFlow({ ctx, stage, root, overlay, bg, closeBtn, triggers, open, close, reset }) {
+  const DEMO = { pick: 2, before: 300, show: 1200, after: 300 };   // デモで開く項目と、前後・見せておく時間（ms）
+  let current = -1;     // 開いている（または開こうとしている）項目
+  let busy = false;     // 開閉のアニメーション中。その間の操作は受け付けない
+  let token = 0;        // 自動再生の世代。手で操作したり再生し直したりすると進み、古い再生を止める
+
+  const openItem = async (i, { focus = false } = {}) => {
+    if (busy || current >= 0) return;
+    busy = true; current = i;
+    if (await open(i, { reduced: ctx.reduced(), focus })) busy = false;
+  };
+
+  const closeItem = async ({ focus = false } = {}) => {
+    if (busy || current < 0) return;
+    busy = true;
+    const i = current;
+    if (!(await close(i, { reduced: ctx.reduced() }))) return;
+    current = -1; busy = false;
+    if (focus) triggers[i].focus({ preventScroll: true });
+  };
+
+  const resetAll = () => {
+    stage.getAnimations({ subtree: true }).forEach(x => x.cancel());
+    overlay.classList.remove('is-open');
+    reset();
+    current = -1; busy = false;
+  };
+
+  // 手で操作したら、デモの自動再生は止める
+  triggers.forEach((el, i) => el.addEventListener('click', () => { token++; openItem(i, { focus: true }); }));
+  const userClose = () => { token++; closeItem({ focus: true }); };
+  closeBtn.addEventListener('click', userClose);
+  bg.addEventListener('click', userClose);
+  overlay.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { e.stopPropagation(); userClose(); }
+    if (e.key === 'Tab') { e.preventDefault(); closeBtn.focus({ preventScroll: true }); }   // 操作できるのは閉じるボタンだけ
+  });
+
+  const run = async () => {
+    const my = ++token;
+    resetAll();
+    const alive = () => my === token && root.isConnected;
+    await ctx.wait(DEMO.before);
+    if (!alive()) return;
+    await openItem(DEMO.pick);
+    if (!alive()) return;
+    await ctx.wait(DEMO.show);
+    if (!alive()) return;
+    await closeItem();
+    if (alive()) await ctx.wait(DEMO.after);
+  };
+  return { run };
+}
+
 /** @type {import('./types.js').Motion[]} */
 export const MOTIONS = [
   {
@@ -996,10 +1082,7 @@ banner.remove();`,
       const front = q(stage, '.book-front');
       const face = q(stage, '.book-spine-face');
       const page = q(stage, '.book-page');
-      const { wait } = ctx;
-      let current = -1;     // 開いている（または開こうとしている）本
-      let busy = false;     // 開閉のアニメーション中。その間の操作は受け付けない
-      let token = 0;
+      const anim = makeAnim(ctx);
 
       const fill = i => {
         const info = BOOKS[i];
@@ -1012,8 +1095,6 @@ banner.remove();`,
           ${info.ch.map((c, n) => `<div class="reveal chap"><b>${n + 1}</b><span>${c}</span></div>`).join('')}
           <p class="reveal page-note">${info.note}</p>`;
       };
-      const anim = (el, frames, duration, delay, easing) =>
-        el.animate(frames, { duration: ctx.dur(duration), delay: ctx.dur(delay), easing, fill: 'both' });
       // 背表紙に重なる姿勢。本の左辺を軸に、背表紙の面が棚の背表紙と同じ位置・大きさになる移動と拡縮（FLIP）。
       // 測るのは変形がかかっていないとき（アニメーションの開始前）
       const poseOf = i => {
@@ -1021,16 +1102,7 @@ banner.remove();`,
         const x = sp.right - b.left, y = sp.top + sp.height / 2 - (b.top + b.height / 2);
         return `translate(${x}px, ${y}px) scale(${BOOKS[i].h / BOOK_H})`;
       };
-      const finish = async anims => {
-        try { await Promise.all(anims.map(x => x.finished)); } catch { return false; }   // reset で中断された
-        anims.forEach(x => x.cancel());
-        return true;
-      };
-
-      const openBook = async (i, { focus = false } = {}) => {
-        if (busy || current >= 0) return;
-        busy = true; current = i;
-        const reduced = ctx.reduced();
+      const open = async (i, { reduced, focus }) => {
         shelf.classList.toggle('is-reduced', reduced);
         fill(i);
         overlay.classList.add('is-open');     // 最終状態は class に持たせる
@@ -1039,89 +1111,49 @@ banner.remove();`,
         // 押した背表紙が inert になってフォーカスが失われないよう、先に閉じるボタンへ移す
         if (focus) closeBtn.focus({ preventScroll: true });
         const items = qa(page, '.reveal');
-        let anims;
         if (reduced) {
           // 動きを減らす: 開いた状態（表紙なし・中身あり）を、オーバーレイごとフェードで表示する。不透明度だけ
-          anims = [anim(overlay, [{ opacity: 0 }, { opacity: 1 }], 250, 0, 'linear')];
-        } else {
-          anims = [
-            anim(bg, [{ opacity: 0 }, { opacity: 1 }], 250, 0, LIFT),
-            anim(closeBtn, [{ opacity: 0 }, { opacity: 1 }], 250, 0, LIFT),
-            // 背表紙の面を向いた姿勢から、縦軸で回りながら持ち上がり、表紙の面が正面に来る
-            anim(book, [{ transform: poseOf(i) }, { transform: 'none' }], 500, 0, INOUT),
-            anim(front, [{ transform: 'rotateY(90deg)', visibility: 'hidden' }, { transform: 'rotateY(0deg)', visibility: 'visible' }], 500, 0, INOUT),
-            anim(face, [{ transform: 'rotateY(0deg)', visibility: 'visible' }, { transform: 'rotateY(-90deg)', visibility: 'hidden' }], 500, 0, INOUT),   // 回り終えたら消す（真横の細い線を残さない）
-            anim(cover, [{ transform: 'rotateY(0deg)' }, { transform: 'rotateY(-100deg)' }], 600, 550, INOUT),
-            ...items.map((el, n) => anim(el, [{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'none' }], 300, 750 + n * 80, LIFT)),
-          ];
+          return playToEnd([anim(overlay, [{ opacity: 0 }, { opacity: 1 }], 250, 0, 'linear')]);
         }
-        const ok = await finish(anims);
-        if (!ok) return;
-        busy = false;
+        return playToEnd([
+          anim(bg, [{ opacity: 0 }, { opacity: 1 }], 250, 0, LIFT),
+          anim(closeBtn, [{ opacity: 0 }, { opacity: 1 }], 250, 0, LIFT),
+          // 背表紙の面を向いた姿勢から、縦軸で回りながら持ち上がり、表紙の面が正面に来る
+          anim(book, [{ transform: poseOf(i) }, { transform: 'none' }], 500, 0, INOUT),
+          anim(front, [{ transform: 'rotateY(90deg)', visibility: 'hidden' }, { transform: 'rotateY(0deg)', visibility: 'visible' }], 500, 0, INOUT),
+          anim(face, [{ transform: 'rotateY(0deg)', visibility: 'visible' }, { transform: 'rotateY(-90deg)', visibility: 'hidden' }], 500, 0, INOUT),   // 回り終えたら消す（真横の細い線を残さない）
+          anim(cover, [{ transform: 'rotateY(0deg)' }, { transform: 'rotateY(-100deg)' }], 600, 550, INOUT),
+          ...items.map((el, n) => anim(el, [{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'none' }], 300, 750 + n * 80, LIFT)),
+        ]);
       };
 
-      const closeBook = async ({ focus = false } = {}) => {
-        if (busy || current < 0) return;
-        busy = true;
-        const i = current;
-        const reduced = ctx.reduced();
+      const close = async (i, { reduced }) => {
         const items = qa(page, '.reveal');
-        let anims;
-        if (reduced) {
-          anims = [anim(overlay, [{ opacity: 1 }, { opacity: 0 }], 250, 0, 'linear')];
-        } else {
-          anims = [
-            ...items.map(el => anim(el, [{ opacity: 1 }, { opacity: 0 }], 150, 0, LIFT)),
-            anim(cover, [{ transform: 'rotateY(-100deg)' }, { transform: 'rotateY(0deg)' }], 400, 100, INOUT),
-            // 縦軸で回りながら棚へ戻り、背表紙の面が棚の背表紙に重なったところで終わる
-            anim(book, [{ transform: 'none' }, { transform: poseOf(i) }], 500, 500, INOUT),
-            anim(front, [{ transform: 'rotateY(0deg)', visibility: 'visible' }, { transform: 'rotateY(90deg)', visibility: 'hidden' }], 500, 500, INOUT),
-            anim(face, [{ transform: 'rotateY(-90deg)', visibility: 'hidden' }, { transform: 'rotateY(0deg)', visibility: 'visible' }], 500, 500, INOUT),
-            anim(bg, [{ opacity: 1 }, { opacity: 0 }], 300, 700, LIFT),
-            anim(closeBtn, [{ opacity: 1 }, { opacity: 0 }], 300, 700, LIFT),
-          ];
-        }
-        const ok = await finish(anims);
-        if (!ok) return;
+        const anims = reduced
+          ? [anim(overlay, [{ opacity: 1 }, { opacity: 0 }], 250, 0, 'linear')]
+          : [
+              ...items.map(el => anim(el, [{ opacity: 1 }, { opacity: 0 }], 150, 0, LIFT)),
+              anim(cover, [{ transform: 'rotateY(-100deg)' }, { transform: 'rotateY(0deg)' }], 400, 100, INOUT),
+              // 縦軸で回りながら棚へ戻り、背表紙の面が棚の背表紙に重なったところで終わる
+              anim(book, [{ transform: 'none' }, { transform: poseOf(i) }], 500, 500, INOUT),
+              anim(front, [{ transform: 'rotateY(0deg)', visibility: 'visible' }, { transform: 'rotateY(90deg)', visibility: 'hidden' }], 500, 500, INOUT),
+              anim(face, [{ transform: 'rotateY(-90deg)', visibility: 'hidden' }, { transform: 'rotateY(0deg)', visibility: 'visible' }], 500, 500, INOUT),
+              anim(bg, [{ opacity: 1 }, { opacity: 0 }], 300, 700, LIFT),
+              anim(closeBtn, [{ opacity: 1 }, { opacity: 0 }], 300, 700, LIFT),
+            ];
+        if (!(await playToEnd(anims))) return false;
         overlay.classList.remove('is-open');   // 終わってから外し、アニメーションは cancel 済み
         spines[i].classList.remove('is-out');
         levels.forEach(l => { l.inert = false; });
-        current = -1; busy = false;
-        if (focus) spines[i].focus({ preventScroll: true });
+        return true;
       };
 
       const reset = () => {
-        stage.getAnimations({ subtree: true }).forEach(x => x.cancel());
-        overlay.classList.remove('is-open');
-        spines.forEach(s => s.classList.remove('is-out'));
+        spines.forEach(sp => sp.classList.remove('is-out'));
         levels.forEach(l => { l.inert = false; });
-        current = -1; busy = false;
       };
 
-      // 手で操作したら、デモの自動再生は止める
-      spines.forEach((s, i) => s.addEventListener('click', () => { token++; openBook(i, { focus: true }); }));
-      const userClose = () => { token++; closeBook({ focus: true }); };
-      closeBtn.addEventListener('click', userClose);
-      bg.addEventListener('click', userClose);
-      overlay.addEventListener('keydown', e => {
-        if (e.key === 'Escape') { e.stopPropagation(); userClose(); }
-        if (e.key === 'Tab') { e.preventDefault(); closeBtn.focus({ preventScroll: true }); }   // 操作できるのは閉じるボタンだけ
-      });
-
-      const run = async () => {
-        const my = ++token;
-        reset();
-        const alive = () => my === token && shelf.isConnected;
-        await wait(300);
-        if (!alive()) return;
-        await openBook(2);
-        if (!alive()) return;
-        await wait(1200);                // 中身を見せる
-        if (!alive()) return;
-        await closeBook();
-        if (alive()) await wait(300);
-      };
-      return { run };
+      return createOverlayFlow({ ctx, stage, root: shelf, overlay, bg, closeBtn, triggers: spines, open, close, reset });
     },
     code: {
       css: `/* 棚: 本は縦置きで横に並べる。背表紙の文字は縦書き */
@@ -1301,10 +1333,7 @@ async function closeIt(spine, bookHeight) {
       const drop = q(stage, '.card3d');     // 上から降りる（移動と不透明度）
       const body = q(stage, '.card-body');  // 縦軸で回る
       const front = q(stage, '.card-front');
-      const { wait } = ctx;
-      let current = -1;     // 開いている（または開こうとしている）カード
-      let busy = false;     // 開閉のアニメーション中。その間の操作は受け付けない
-      let token = 0;
+      const anim = makeAnim(ctx);
 
       const fill = i => {
         const info = CARDS[i];
@@ -1315,18 +1344,7 @@ async function closeIt(spine, bookHeight) {
           <span class="card-name">${info.name}</span>
           <span class="card-note">${info.note}</span>`;
       };
-      const anim = (el, frames, duration, delay, easing) =>
-        el.animate(frames, { duration: ctx.dur(duration), delay: ctx.dur(delay), easing, fill: 'both' });
-      const finish = async anims => {
-        try { await Promise.all(anims.map(x => x.finished)); } catch { return false; }   // reset で中断された
-        anims.forEach(x => x.cancel());
-        return true;
-      };
-
-      const openCard = async (i, { focus = false } = {}) => {
-        if (busy || current >= 0) return;
-        busy = true; current = i;
-        const reduced = ctx.reduced();
+      const open = async (i, { reduced, focus }) => {
         fill(i);
         grid.inert = true;
         // 1. 選んだ伏せカードが、少し右へ滑りながらフェードアウトする（動きを減らす: 不透明度だけ）
@@ -1334,11 +1352,11 @@ async function closeIt(spine, bookHeight) {
         const out = reduced
           ? anim(cards[i], [{ opacity: 1 }, { opacity: 0 }], 200, 0, 'linear')
           : anim(cards[i], [{ opacity: 1, transform: 'translateX(0)' }, { opacity: 0, transform: `translateX(${SLIDE}px)` }], 300, 0, LIFT);
-        if (!(await finish([out]))) return;
+        if (!(await playToEnd([out]))) return false;
         // 2. 消えたあとに、オーバーレイの中央へ出す
         overlay.classList.add('is-open');
         if (focus) closeBtn.focus({ preventScroll: true });
-        const anims = reduced
+        return playToEnd(reduced
           ? [anim(overlay, [{ opacity: 0 }, { opacity: 1 }], 250, 0, 'linear')]
           : [
               anim(bg, [{ opacity: 0 }, { opacity: 1 }], 250, 0, LIFT),
@@ -1347,16 +1365,10 @@ async function closeIt(spine, bookHeight) {
               anim(drop, [{ transform: 'translateY(-180px)', opacity: 0 }, { opacity: 1, offset: .3 }, { transform: 'none', opacity: 1 }], 1000, 0, LIFT),
               // 縦軸で2回転（720°）。降りきったあともしばらく回り、ゆっくり止まる
               anim(body, [{ transform: 'rotateY(0deg)' }, { transform: 'rotateY(720deg)' }], 1800, 0, SPIN),
-            ];
-        if (!(await finish(anims))) return;
-        busy = false;
+            ]);
       };
 
-      const closeCard = async ({ focus = false } = {}) => {
-        if (busy || current < 0) return;
-        busy = true;
-        const i = current;
-        const reduced = ctx.reduced();
+      const close = async (i, { reduced }) => {
         const anims = reduced
           ? [anim(overlay, [{ opacity: 1 }, { opacity: 0 }], 250, 0, 'linear')]
           : [
@@ -1364,52 +1376,22 @@ async function closeIt(spine, bookHeight) {
               anim(closeBtn, [{ opacity: 1 }, { opacity: 0 }], 200, 0, LIFT),
               anim(bg, [{ opacity: 1 }, { opacity: 0 }], 300, 100, LIFT),
             ];
-        if (!(await finish(anims))) return;
+        if (!(await playToEnd(anims))) return false;
         overlay.classList.remove('is-open');   // 終わってから外し、アニメーションは cancel 済み
         // 元の位置に伏せたカードが戻る（右から少し滑りながらフェードイン）
         cards[i].classList.remove('is-out');
         grid.inert = false;
-        current = -1;
-        const back = reduced
+        return playToEnd([reduced
           ? anim(cards[i], [{ opacity: 0 }, { opacity: 1 }], 200, 0, 'linear')
-          : anim(cards[i], [{ opacity: 0, transform: `translateX(${SLIDE}px)` }, { opacity: 1, transform: 'none' }], 300, 0, LIFT);
-        if (!(await finish([back]))) return;
-        busy = false;
-        if (focus) cards[i].focus({ preventScroll: true });
+          : anim(cards[i], [{ opacity: 0, transform: `translateX(${SLIDE}px)` }, { opacity: 1, transform: 'none' }], 300, 0, LIFT)]);
       };
 
       const reset = () => {
-        stage.getAnimations({ subtree: true }).forEach(x => x.cancel());
-        overlay.classList.remove('is-open');
         cards.forEach(c => c.classList.remove('is-out'));
         grid.inert = false;
-        current = -1; busy = false;
       };
 
-      // 手で操作したら、デモの自動再生は止める
-      cards.forEach((c, i) => c.addEventListener('click', () => { token++; openCard(i, { focus: true }); }));
-      const userClose = () => { token++; closeCard({ focus: true }); };
-      closeBtn.addEventListener('click', userClose);
-      bg.addEventListener('click', userClose);
-      overlay.addEventListener('keydown', e => {
-        if (e.key === 'Escape') { e.stopPropagation(); userClose(); }
-        if (e.key === 'Tab') { e.preventDefault(); closeBtn.focus({ preventScroll: true }); }   // 操作できるのは閉じるボタンだけ
-      });
-
-      const run = async () => {
-        const my = ++token;
-        reset();
-        const alive = () => my === token && deck.isConnected;
-        await wait(300);
-        if (!alive()) return;
-        await openCard(2);
-        if (!alive()) return;
-        await wait(1200);                // 表を見せる
-        if (!alive()) return;
-        await closeCard();
-        if (alive()) await wait(300);
-      };
-      return { run };
+      return createOverlayFlow({ ctx, stage, root: deck, overlay, bg, closeBtn, triggers: cards, open, close, reset });
     },
     code: {
       css: `/* 伏せたカード: 5:8 の縦長。裏面は柄だけで、中身は見せない */
