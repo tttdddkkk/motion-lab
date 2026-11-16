@@ -1,0 +1,66 @@
+/* ビューア（index.html）の画面レイアウト。トークンとデモ用スタイルは motions.css、差分比較は compare.css */
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--text); }
+body { font: 14px/1.6 system-ui, -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif; }
+button { font: inherit; color: inherit; cursor: pointer; }
+
+.app { display: grid; grid-template-columns: 260px 1fr; min-height: 100vh; }
+@media (max-width: 820px) { .app { grid-template-columns: 1fr; } }
+
+/* sidebar */
+aside { border-right: 1px solid var(--line); padding: 20px 16px; background: var(--panel); }
+@media (max-width: 820px) { aside { border-right: 0; border-bottom: 1px solid var(--line); } }
+.brand { font-weight: 700; letter-spacing: .08em; margin: 0 0 16px; }
+.brand small { display: block; font-weight: 400; color: var(--sub); letter-spacing: 0; }
+.intro { margin: -8px 0 16px; color: var(--sub); font-size: 12px; line-height: 1.6; }
+.intro a { color: var(--accent); }
+.filters { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.chip {
+  border: 1px solid var(--line); background: transparent; border-radius: 999px;
+  padding: 4px 10px; color: var(--sub); white-space: nowrap;
+}
+.chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #0b1220; font-weight: 600; }
+.list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.list button {
+  width: 100%; text-align: left; background: transparent; border: 1px solid transparent;
+  border-radius: 10px; padding: 8px 10px;
+}
+.list button:hover { background: #20242c; }
+.list button[aria-current="true"] { background: #222836; border-color: #31405f; }
+.list .meta { display: block; color: var(--sub); font-size: 12px; }
+
+/* main */
+main { padding: 24px; display: grid; gap: 20px; align-content: start; max-width: 960px; }
+h1 { font-size: 20px; margin: 0; }
+.desc { color: var(--sub); margin: 4px 0 0; }
+
+.stage-wrap { display: grid; grid-template-columns: auto 1fr; gap: 24px; align-items: start; }
+@media (max-width: 820px) { .stage-wrap { grid-template-columns: 1fr; justify-items: center; } main { padding: 16px; } }
+
+.phone {
+  width: 260px; height: 480px; border-radius: 34px; border: 6px solid #2c313b;
+  background: #0b0d11; position: relative; overflow: hidden;
+  box-shadow: 0 20px 50px rgba(0,0,0,.45);
+}
+
+.side { display: grid; gap: 16px; align-content: start; width: 100%; }
+.controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.play {
+  background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #0b1220;
+  border: 0; border-radius: 10px; padding: 8px 18px; font-weight: 700;
+}
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.seg button { background: transparent; border: 0; padding: 6px 12px; color: var(--sub); white-space: nowrap; }
+.seg button[aria-pressed="true"] { background: #2a3040; color: var(--text); }
+label.check { display: inline-flex; gap: 6px; align-items: center; color: var(--sub); }
+
+dl.facts { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; margin: 0; }
+dl.facts dt { color: var(--sub); }
+dl.facts dd { margin: 0; font-variant-numeric: tabular-nums; }
+code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+/* code */
+.codebox { border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); overflow: hidden; }
+.codehead { display: flex; flex-wrap: wrap; gap: 6px; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--line); padding: 6px 8px; }
+.copy { background: transparent; border: 1px solid var(--line); border-radius: 8px; padding: 4px 10px; color: var(--sub); white-space: nowrap; margin-left: auto; min-width: 9em; }
+pre { margin: 0; padding: 14px 16px; overflow: auto; font-size: 12.5px; line-height: 1.65; max-height: 360px; }

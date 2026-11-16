@@ -30,5 +30,5 @@
 - `MOTIONS` と差分比較のデータの綴り違い・必須フィールドの欠落を、`npm run typecheck` が検出する
 - `typescript` が devDependency に増える（Dependabot の `minor-and-patch` で更新される）
 - `noImplicitAny` を有効にするまでは、注釈の無い引数は検査されない。段階的に有効化するか、別の ADR で判断する
-- `index.html` のインラインスクリプトは、引き続き検査の対象外
+- `index.html` のインラインスクリプトは、引き続き検査の対象外（2026-11-16 追記: `motions/viewer.js` に外出しし、検査の対象に加えた。判断は変えていない）
 - モーションの要素の取得に失敗したとき、`null` 参照ではなく「要素が見つからない: <セレクタ>」の例外になる

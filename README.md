@@ -18,7 +18,9 @@
 
 - `motions/motions.js` … モーション定義（`MOTIONS` 配列）。ビューアと Storybook の両方がここを読む
 - `motions/motions.css` … 共有トークンとデモ用スタイル
-- `index.html` … スマホ向けビューア。「差分比較」への切り替え（`#compare`）を含む
+- `index.html` … スマホ向けビューアの骨組み（HTML だけ）。「差分比較」への切り替え（`#compare`）を含む
+- `motions/viewer.js` / `motions/viewer.css` … ビューアの動作と画面レイアウト。`index.html` から読み込む
+- `motions/dom.js` … DOM から要素を取る共通の道具（`q` / `qa`）。見つからなければ、探したセレクタつきの例外にする
 - `motions/compare.js` … 差分比較のデータ（バリアント定義とトラック生成）。`MOTIONS` とは別で、ストーリーは不要。`motions/compare-ui.js` が描画する（ADR 0012）
 - `stories/motions.stories.js` … 1モーション1行のストーリーと振る舞いテスト（`play`）
 - `motions/types.js` … JSDoc の型定義（`Motion` / `Ctx` / 差分比較のバリアントなど）。実行時には読まれない（ADR 0018）
