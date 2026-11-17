@@ -7,6 +7,15 @@
   --sub: #9097a3;
   --accent: #6ea8ff;
   --accent-2: #8f7bff;
+  --accent-gradient: linear-gradient(135deg, var(--accent), var(--accent-2));
+  --on-accent: #0b1220;                 /* アクセント色の上の文字 */
+  /* デモ（電話の画面の中）で使う色。役割ごとに1つにまとめる */
+  --demo-surface: #151a24;              /* アプリ画面・枠の背景 */
+  --demo-row: rgba(255,255,255,.08);    /* ダミー行の塗り */
+  --demo-line: rgba(255,255,255,.08);   /* 枠の区切り線 */
+  --demo-bubble: #2f3a52;               /* 吹き出し・通知・帯の面 */
+  --demo-media: linear-gradient(160deg, #3b5bdb, #7a4dd8);   /* 映像の代わりのダミー */
+  --paper: #f3ecdc;                     /* 本のページ・カードの面 */
   --radius: 14px;
   color-scheme: dark;
 }
@@ -16,26 +25,27 @@
 .demo-btn {
   position: relative; overflow: hidden; border: 0; border-radius: 14px;
   padding: 14px 32px; font-weight: 700; font-size: 16px;
-  background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #0b1220;
+  background: var(--accent-gradient); color: var(--on-accent);
   -webkit-tap-highlight-color: transparent; user-select: none;
 }
 .ripple { position: absolute; border-radius: 50%; background: #fff; pointer-events: none; opacity: 0; }
 .screen { position: absolute; inset: 0; padding: 56px 20px 20px; display: grid; align-content: start; gap: 12px; }
 .screen h3 { margin: 0 0 4px; font-size: 20px; }
-.screen .row { height: 54px; border-radius: 12px; background: rgba(255,255,255,.08); }
-.screen.a { background: #151a24; }
-.screen.b { background: linear-gradient(160deg, #3b5bdb, #7a4dd8); }
+/* ダミー行（画面・通知・ティッカーで共通） */
+.screen .row, .ntf-row, .tx-row { height: 54px; border-radius: 12px; background: var(--demo-row); }
+.screen.a { background: var(--demo-surface); }
+.screen.b { background: var(--demo-media); }
 .screen.b .hero { height: 140px; border-radius: 16px; background: rgba(255,255,255,.2); }
 
 .flow { position: absolute; inset: 0; display: grid; grid-template-rows: 1fr auto auto; }
-.flow-media { background: linear-gradient(160deg, #3b5bdb, #7a4dd8); }
-.flow-frame { position: relative; height: 100px; overflow: hidden; background: #151a24; border-top: 1px solid rgba(255,255,255,.08); }
+.flow-media { background: var(--demo-media); }
+.flow-frame { position: relative; height: 100px; overflow: hidden; background: var(--demo-surface); border-top: 1px solid var(--demo-line); }
 .flow-item { position: absolute; left: 0; white-space: nowrap; font-size: 14px; line-height: 20px; color: var(--text); will-change: transform; }
 .flow-item.is-static { left: 8px; }
 /* 縦版: 映像の横に枠を置く（映像と重ねない）。文字は下から上へ流す */
 .flow.is-vertical { grid-template-columns: 1fr 150px; grid-template-rows: 1fr auto; }
 .flow.is-vertical .flow-bar { grid-column: 1 / -1; }
-.flow.is-vertical .flow-frame { height: auto; border-top: 0; border-left: 1px solid rgba(255,255,255,.08); }
+.flow.is-vertical .flow-frame { height: auto; border-top: 0; border-left: 1px solid var(--demo-line); }
 /* 全件、左端にそろえる。枠が狭いので折り返し、左右に8pxの余白を残す */
 .flow.is-vertical .flow-item { top: 0; left: 8px; max-width: calc(100% - 16px); white-space: normal; overflow-wrap: anywhere; }
 /* 静止表示: 位置（top）は JS が、表示時間が重なる文字どうしを避けて決める */
@@ -46,31 +56,30 @@
 
 /* チャット吹き出し: 映像の下に枠を置く（映像と重ねない）。新しい吹き出しは最下部に入る */
 .chat { position: absolute; inset: 0; display: grid; grid-template-rows: 1fr auto; }
-.chat-media { background: linear-gradient(160deg, #3b5bdb, #7a4dd8); }
+.chat-media { background: var(--demo-media); }
 .chat-frame {
   position: relative; height: 220px; overflow: hidden; box-sizing: border-box;
   display: flex; flex-direction: column; justify-content: flex-end; gap: 8px; padding: 12px;
-  background: #151a24; border-top: 1px solid rgba(255,255,255,.08);
+  background: var(--demo-surface); border-top: 1px solid var(--demo-line);
 }
 .chat-bubble {
   flex: none; align-self: flex-start; max-width: 85%; box-sizing: border-box; padding: 8px 12px;
-  border-radius: 16px 16px 16px 4px; background: #2f3a52; color: var(--text);
+  border-radius: 16px 16px 16px 4px; background: var(--demo-bubble); color: var(--text);
   font-size: 14px; line-height: 20px; overflow-wrap: anywhere; transform-origin: 0 100%;
 }
 
 /* 通知: アプリ画面の上に通知が出る。映像は使わない */
-.ntf { position: absolute; inset: 0; overflow: hidden; background: #151a24; padding: 72px 16px 16px; display: grid; align-content: start; gap: 12px; box-sizing: border-box; }
-.ntf-row { height: 54px; border-radius: 12px; background: rgba(255,255,255,.08); }
+.ntf, .tx-board { position: absolute; inset: 0; overflow: hidden; background: var(--demo-surface); padding: 72px 16px 16px; display: grid; align-content: start; gap: 12px; box-sizing: border-box; }
 .ntf-toast {
   position: absolute; bottom: 20px; left: 0; right: 0; margin-inline: auto; width: fit-content; max-width: calc(100% - 32px); box-sizing: border-box;
   display: flex; align-items: center; gap: 8px; padding: 10px 16px; border: 0; border-radius: 999px;
-  background: #2f3a52; color: var(--text); font: inherit; font-size: 14px; line-height: 20px; box-shadow: 0 6px 18px rgba(0,0,0,.35);
+  background: var(--demo-bubble); color: var(--text); font: inherit; font-size: 14px; line-height: 20px; box-shadow: 0 6px 18px rgba(0,0,0,.35);
 }
 .ntf-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: #4cc38a; }
 .ntf-banner {
   position: absolute; top: 10px; left: 10px; right: 10px; box-sizing: border-box;
   display: grid; gap: 2px; padding: 10px 14px; border-radius: 14px;
-  background: #2f3a52; color: var(--text); font-size: 13px; line-height: 18px; box-shadow: 0 6px 18px rgba(0,0,0,.35);
+  background: var(--demo-bubble); color: var(--text); font-size: 13px; line-height: 18px; box-shadow: 0 6px 18px rgba(0,0,0,.35);
 }
 .ntf-banner strong { font-size: 14px; }
 .ntf-banner span { opacity: .8; }
@@ -114,7 +123,7 @@
 /* 背表紙の面: 表紙の左辺の外側に置く。開いた状態では消す（真横の細い線を残さない）。幅は背表紙の幅(38px)を --k 倍したもの */
 .book-spine-face { position: absolute; top: 0; right: 100%; width: calc(38px * var(--k)); height: 100%; transform-origin: 100% 50%; transform: rotateY(-90deg); visibility: hidden; }
 .book-inside {
-  position: absolute; inset: 0; overflow: hidden; border-radius: 3px 8px 8px 3px; background: #f3ecdc; color: #2b2a26;
+  position: absolute; inset: 0; overflow: hidden; border-radius: 3px 8px 8px 3px; background: var(--paper); color: #2b2a26;
   box-shadow: 4px 6px 0 -2px #e0d6bd, 0 14px 30px rgba(0,0,0,.5);
 }
 .book-page { padding: 18px 16px; display: grid; gap: 6px; align-content: start; }
@@ -166,8 +175,8 @@
 .card-back { transform: rotateY(180deg); box-shadow: inset 0 0 0 4px rgba(0,0,0,.28), inset 0 0 0 5px rgba(240,200,120,.65), 0 14px 30px rgba(0,0,0,.55); }
 .card-front {
   box-sizing: border-box; padding: 14px 12px; display: grid; justify-items: center; align-content: center; gap: 6px;
-  background: #f3ecdc; color: #2b2540; text-align: center;
-  box-shadow: inset 0 0 0 5px #f3ecdc, inset 0 0 0 6px #c9a35a, 0 14px 30px rgba(0,0,0,.55);
+  background: var(--paper); color: #2b2540; text-align: center;
+  box-shadow: inset 0 0 0 5px var(--paper), inset 0 0 0 6px #c9a35a, 0 14px 30px rgba(0,0,0,.55);
 }
 .card-no { font-size: 11px; letter-spacing: .2em; color: #8a6a2b; }
 .card-icon { width: 60px; height: 60px; color: var(--c); }
@@ -177,10 +186,10 @@
 /* テキスト: 字幕（映像の下の字幕枠） */
 .tx { position: absolute; inset: 0; display: grid; grid-template-rows: 1fr auto; }
 .tx.tx-has-bar { grid-template-rows: 1fr auto auto; }
-.tx-media { background: linear-gradient(160deg, #3b5bdb, #7a4dd8); }
+.tx-media { background: var(--demo-media); }
 .tx-caption {
   margin: 0; min-height: 96px; box-sizing: border-box; padding: 20px 16px;
-  background: #151a24; border-top: 1px solid rgba(255,255,255,.08);
+  background: var(--demo-surface); border-top: 1px solid var(--demo-line);
   color: var(--text); font-size: 17px; line-height: 26px; text-align: center;
 }
 /* 文はすべて同じ場所に重ね、時刻に合わせて見せる。文字の既定は非表示（アニメーション中だけ見える） */
@@ -190,9 +199,7 @@
 .tx-caption.is-static .tx-sentence { opacity: 0; }
 .tx-caption.is-static .tx-sentence span { opacity: 1; }
 /* テキスト: ティッカー帯（画面上部の1行の帯） */
-.tx-board { position: absolute; inset: 0; overflow: hidden; background: #151a24; padding: 72px 16px 16px; display: grid; align-content: start; gap: 12px; box-sizing: border-box; }
-.tx-row { height: 54px; border-radius: 12px; background: rgba(255,255,255,.08); }
-.tx-band { position: absolute; top: 16px; left: 0; right: 0; height: 36px; overflow: hidden; background: #2f3a52; color: var(--text); font-size: 14px; line-height: 36px; }
+.tx-band { position: absolute; top: 16px; left: 0; right: 0; height: 36px; overflow: hidden; background: var(--demo-bubble); color: var(--text); font-size: 14px; line-height: 36px; }
 .tx-track { display: flex; width: max-content; white-space: nowrap; }
 .tx-track span { padding-left: 16px; padding-right: 16px; }
 .tx-static { display: block; padding: 0 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -200,7 +207,7 @@
 .tx-track[hidden], .tx-static[hidden] { display: none; }
 /* テキスト: 同期ハイライト（歌詞・書き起こし） */
 .tx-sync { position: absolute; inset: 0; display: grid; grid-template-rows: 1fr auto; }
-.tx-sync-frame { position: relative; overflow: hidden; background: #151a24; }
+.tx-sync-frame { position: relative; overflow: hidden; background: var(--demo-surface); }
 .tx-lines { position: absolute; top: 0; left: 0; right: 0; margin: 0; padding: 0 20px; list-style: none; will-change: transform; }
 .tx-lines.is-static { top: 16px; }
 .tx-lines li { padding: 6px 0; color: var(--text); font-size: 16px; line-height: 24px; opacity: .35; }

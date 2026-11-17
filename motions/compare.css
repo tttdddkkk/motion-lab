@@ -1,9 +1,12 @@
+:root {
+  --warn-text: #f3d9a4;   /* 注意書き・微差の文字 */
+}
 /* 差分比較ビュー（index.html の「差分比較」） */
 [hidden] { display: none !important; }
 
 .cmp-top { display: grid; gap: 12px; }
 .cmp-notice {
-  border: 1px solid #6b4f1d; background: #2a2210; color: #f3d9a4;
+  border: 1px solid #6b4f1d; background: #2a2210; color: var(--warn-text);
   border-radius: 10px; padding: 10px 12px;
 }
 .cmp-notice label { display: inline-flex; gap: 6px; align-items: center; margin-top: 6px; }
@@ -53,7 +56,7 @@
 .cmp-btn .ripple { left: 50%; top: 50%; width: 60px; height: 60px; margin: -30px 0 0 -30px; }
 .cmp-box {
   width: 84px; height: 84px; border-radius: 18px; display: grid; align-content: center; gap: 8px; padding: 0 14px;
-  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  background: var(--accent-gradient);
 }
 .cmp-box span { height: 8px; border-radius: 4px; background: rgba(255,255,255,.55); }
 .cmp-listwrap { align-content: center; gap: 8px; padding: 0 16px; }
@@ -64,9 +67,9 @@
 .cmp-idrow { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .cmp-id { color: var(--sub); font-size: 12px; }
 .cmp-badge { font-size: 11px; border-radius: 999px; padding: 1px 8px; border: 1px solid var(--line); color: var(--sub); }
-.cmp-badge.base { background: var(--accent); border-color: var(--accent); color: #0b1220; font-weight: 700; }
-.cmp-badge.subtle { border-color: #8a6d1f; color: #f3d9a4; }
-.cmp-letter { font-weight: 700; color: #0b1220; background: var(--accent-2); border-radius: 6px; padding: 0 8px; }
+.cmp-badge.base { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 700; }
+.cmp-badge.subtle { border-color: #8a6d1f; color: var(--warn-text); }
+.cmp-letter { font-weight: 700; color: var(--on-accent); background: var(--accent-2); border-radius: 6px; padding: 0 8px; }
 .cmp-card h4 { margin: 0; font-size: 15px; }
 .cmp-tag { font-size: 11px; color: var(--sub); border: 1px solid var(--line); border-radius: 999px; padding: 0 8px; }
 .cmp-tags { display: flex; flex-wrap: wrap; gap: 4px; }
@@ -75,7 +78,7 @@
 .cmp-params { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; margin: 0; font-size: 12px; }
 .cmp-params dt { color: var(--sub); }
 .cmp-params dd { margin: 0; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
-.cmp-note { margin: 0; font-size: 12px; color: #f3d9a4; }
+.cmp-note { margin: 0; font-size: 12px; color: var(--warn-text); }
 .cmp-actions { display: flex; gap: 6px; flex-wrap: wrap; }
 .cmp-actions .play { padding: 6px 14px; }
 .cmp-actions .copy { margin-left: 0; min-width: 0; }
@@ -88,7 +91,7 @@
 /* D. 通知: トーストは入ってくる側の端に置く（下・上は中央、左・右は下寄り） */
 .cmp-toast {
   position: absolute; display: flex; align-items: center; gap: 5px; width: max-content;
-  padding: 6px 10px; border-radius: 999px; background: #2f3a52; color: var(--text);
+  padding: 6px 10px; border-radius: 999px; background: var(--demo-bubble); color: var(--text);
   font-size: 10px; line-height: 14px; box-shadow: 0 4px 10px rgba(0,0,0,.35);
 }
 .cmp-toast i { width: 6px; height: 6px; border-radius: 50%; background: #4cc38a; }
