@@ -9,7 +9,7 @@ import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { afterAll, beforeAll, describe, expect, test } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, test } from 'vitest';
 import { chromium } from 'playwright';
 import { MOTIONS } from '../motions/motions.js';
 import { COMPARE_GROUPS } from '../motions/compare.js';
@@ -43,6 +43,15 @@ beforeAll(async () => {
   browser = await chromium.launch(executablePath ? { executablePath, args: ['--no-sandbox'] } : {});
 }, 30000);
 
+/** @type {import('playwright').BrowserContext[]} */
+let contexts = [];
+
+/* テストが途中の expect で失敗しても、開いたコンテキストを確実に閉じる */
+afterEach(async () => {
+  await Promise.all(contexts.map(context => context.close()));
+  contexts = [];
+});
+
 afterAll(async () => {
   await browser?.close();
   await new Promise(resolve => server?.close(() => resolve(undefined)));
@@ -51,6 +60,7 @@ afterAll(async () => {
 /* ページを開いて、コンソールのエラーを集める。errors が空であることも、各テストの検証に含める */
 async function openViewer(hash = '') {
   const context = await browser.newContext({ viewport: { width: 1100, height: 900 } });
+  contexts.push(context);
   await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: base });
   const page = await context.newPage();
   /** @type {string[]} */
@@ -60,7 +70,7 @@ async function openViewer(hash = '') {
   await page.goto(`${base}/index.html${hash}`);
   // #compare を直接開いたときは #list が隠れるので、見えるかでなく DOM にあるかで待つ
   await page.waitForSelector('#list button', { state: 'attached' });
-  return { page, errors, close: () => context.close() };
+  return { page, errors };
 }
 
 const first = MOTIONS[0];
@@ -68,12 +78,11 @@ const second = MOTIONS[1];
 
 describe('ビューア', { timeout: 30000 }, () => {
   test('一覧にすべてのモーションが出て、先頭が選ばれている', async () => {
-    const { page, errors, close } = await openViewer();
+    const { page, errors } = await openViewer();
     await expect(page.locator('#list button').count()).resolves.toBe(MOTIONS.length);
     await expect(page.locator('#title').textContent()).resolves.toBe(first.name);
     await expect(page.locator('#list button[aria-current="true"]').count()).resolves.toBe(1);
     expect(errors).toEqual([]);
-    await close();
   });
 
   test('URL の #<id> で、そのモーションが最初に開く。存在しない id は先頭を開く', async () => {
@@ -81,24 +90,21 @@ describe('ビューア', { timeout: 30000 }, () => {
     const a = await openViewer(`#${target.id}`);
     await expect(a.page.locator('#title').textContent()).resolves.toBe(target.name);
     expect(a.errors).toEqual([]);
-    await a.close();
 
     const b = await openViewer('#no-such-motion');
     await expect(b.page.locator('#title').textContent()).resolves.toBe(first.name);
-    await b.close();
   });
 
   test('詳細に、感触・用途・時間・何の時間・イージングが出る', async () => {
-    const { page, close } = await openViewer(`#${second.id}`);
+    const { page } = await openViewer(`#${second.id}`);
     const facts = (await page.locator('#facts').textContent()) ?? '';
     for (const text of [second.feel, second.use, `${second.ms}ms`, second.msLabel, second.easing]) {
       expect(facts, text).toContain(text);
     }
-    await close();
   });
 
   test('カテゴリで絞り込める。「すべて」で戻る', async () => {
-    const { page, errors, close } = await openViewer();
+    const { page, errors } = await openViewer();
     for (const [label, cat] of [['ボタン', 'button'], ['通知', 'notice'], ['テキスト', 'text']]) {
       await page.locator('#filters button', { hasText: label }).click();
       await expect(page.locator('#list button').count(), label).resolves.toBe(MOTIONS.filter(m => m.cat === cat).length);
@@ -107,22 +113,20 @@ describe('ビューア', { timeout: 30000 }, () => {
     await page.locator('#filters button', { hasText: 'すべて' }).click();
     await expect(page.locator('#list button').count()).resolves.toBe(MOTIONS.length);
     expect(errors).toEqual([]);
-    await close();
   });
 
   test('再生速度を変えると、時間に実際の時間と元の時間が出る', async () => {
-    const { page, close } = await openViewer(`#${second.id}`);
+    const { page } = await openViewer(`#${second.id}`);
     await page.locator('#speed button', { hasText: '2×' }).click();
     await expect(page.locator('#speed [aria-pressed="true"]').textContent()).resolves.toBe('2×');
     const facts = (await page.locator('#facts').textContent()) ?? '';
     expect(facts).toContain(`${Math.round(second.ms / 2)}ms（2×・元は ${second.ms}ms）`);
     await page.locator('#speed button', { hasText: '1×' }).click();
     await expect(page.locator('#facts').textContent()).resolves.not.toContain('元は');
-    await close();
   });
 
   test('コードのタブで、CSS・WAAPI・動きを減らす場合が切り替わる。コピーできる', async () => {
-    const { page, errors, close } = await openViewer(`#${second.id}`);
+    const { page, errors } = await openViewer(`#${second.id}`);
     for (const [label, key] of [['WAAPI', 'waapi'], ['動きを減らす場合', 'reduced'], ['CSS', 'css']]) {
       await page.locator('#tabs button', { hasText: label }).click();
       await expect(page.locator('#code').textContent(), label).resolves.toBe(second.code[key]);
@@ -132,11 +136,10 @@ describe('ビューア', { timeout: 30000 }, () => {
     await expect.poll(() => page.locator('#copy').textContent()).toBe('コピーしました');
     await expect(page.evaluate(() => navigator.clipboard.readText())).resolves.toBe(second.code.css);
     expect(errors).toEqual([]);
-    await close();
   });
 
   test('一覧のクリックと矢印キーでモーションを切り替え、URL の # も変わる', async () => {
-    const { page, errors, close } = await openViewer();
+    const { page, errors } = await openViewer();
     await page.locator('#list button').nth(2).click();
     await expect(page.locator('#title').textContent()).resolves.toBe(MOTIONS[2].name);
     await expect(page.evaluate(() => location.hash)).resolves.toBe(`#${MOTIONS[2].id}`);
@@ -147,21 +150,27 @@ describe('ビューア', { timeout: 30000 }, () => {
     await page.keyboard.press('ArrowLeft');
     await expect(page.locator('#title').textContent()).resolves.toBe(MOTIONS[1].name);
     expect(errors).toEqual([]);
-    await close();
   });
 
   test('ページを開いたまま # を変えると追従する。存在しない id は無視する', async () => {
-    const { page, close } = await openViewer();
+    const { page, errors } = await openViewer();
     const target = MOTIONS[4];
     await page.evaluate(id => { location.hash = `#${id}`; }, target.id);
     await expect(page.locator('#title').textContent()).resolves.toBe(target.name);
-    await page.evaluate(() => { location.hash = '#no-such-motion'; });
+
+    // hashchange は非同期。ビューアより後に登録したリスナーは、ビューアのハンドラが走り終えてから呼ばれるので、
+    // それを待ってから判定する（待たずに「変わっていない」を見ると、ハンドラが走る前に通ってしまう）
+    await page.evaluate(() => new Promise(resolve => {
+      addEventListener('hashchange', () => setTimeout(resolve, 0), { once: true });
+      location.hash = '#no-such-motion';
+    }));
     await expect(page.locator('#title').textContent()).resolves.toBe(target.name);
-    await close();
+    await expect(page.locator('#list button[aria-current="true"]').count()).resolves.toBe(1);
+    expect(errors).toEqual([]);   // 無効な id を処理しようとして例外になっていない
   });
 
   test('差分比較に切り替えると、比較が出てモーションが隠れる。戻るとモーションが作り直される', async () => {
-    const { page, errors, close } = await openViewer(`#${second.id}`);
+    const { page, errors } = await openViewer(`#${second.id}`);
     await page.locator('#mode button', { hasText: '差分比較' }).click();
     await page.waitForSelector('.cmp-card');
     const variants = COMPARE_GROUPS.reduce((n, g) => n + g.variants.length, 0);
@@ -176,20 +185,18 @@ describe('ビューア', { timeout: 30000 }, () => {
     await expect(page.locator('#title').textContent()).resolves.toBe(second.name);
     await expect(page.locator('#stage > *').count()).resolves.toBeGreaterThan(0);
     expect(errors).toEqual([]);
-    await close();
   });
 
   test('#compare を直接開くと、差分比較が出る', async () => {
-    const { page, errors, close } = await openViewer('#compare');
+    const { page, errors } = await openViewer('#compare');
     await page.waitForSelector('.cmp-card');
     await expect(page.locator('#viewer').isHidden()).resolves.toBe(true);
     expect(errors).toEqual([]);
-    await close();
   });
 
   test('再生中に再生し直しても、コンソールにエラーが出ない（中断は正常な動きとして扱う）', async () => {
     // シーク付きのモーションは、再生のたびに前のアニメーションを cancel する。その中断が、エラーとして出てはいけない
-    const { page, errors, close } = await openViewer('#flow-seek');
+    const { page, errors } = await openViewer('#flow-seek');
     for (let i = 0; i < 3; i++) {
       await page.locator('#play').click();
       await page.waitForTimeout(100);
@@ -197,17 +204,15 @@ describe('ビューア', { timeout: 30000 }, () => {
     await page.locator('#speed button', { hasText: '2×' }).click();   // 速度を変えると、再生し直される
     await page.waitForTimeout(100);
     expect(errors).toEqual([]);
-    await close();
   });
 
   test('すべてのモーションを素早く切り替えても、コンソールにエラーが出ない（再生し直しの中断を除く）', async () => {
-    const { page, errors, close } = await openViewer();
+    const { page, errors } = await openViewer();
     for (let i = 0; i < MOTIONS.length; i++) {
       await page.locator('#list button').nth(i).click();
       await page.waitForTimeout(80);
     }
     await expect(page.locator('#title').textContent()).resolves.toBe(MOTIONS[MOTIONS.length - 1].name);
     expect(errors).toEqual([]);
-    await close();
   });
 });
