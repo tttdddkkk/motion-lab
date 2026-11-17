@@ -1,4 +1,6 @@
 import { expect, test } from 'vitest';
+import { MOTIONS } from '../motions/motions.js';
+import { TOAST_TIMING, LEAVE_EASE } from '../motions/tokens.js';
 import { COMPARE_GROUPS, SECTIONS, PAIR_SECTION, buildTracks, formatParams, toWaapiJson } from '../motions/compare.js';
 
 /* id からグループを取る。なければテストを失敗させる */
@@ -89,4 +91,28 @@ test('速度差・時間差のバリアントは duration だけが違う', () =
     const strip = v => ({ ...v.params, duration: 0 });
     for (const v of g.variants) expect(strip(v)).toEqual(strip(g.variants[0]));
   }
+});
+
+/* 通知モーションのトーストと、差分比較の通知（D）は、同じタイミングを共有する（tokens.js）。
+   片方に値を直接書き戻すとずれるので、一致を確かめる */
+test('通知の差分比較の基準は、トーストのモーションと同じタイミングを使う', () => {
+  const toast = MOTIONS.find(m => m.id === 'toast');
+  expect(toast?.ms).toBe(TOAST_TIMING.in);
+  expect(toast?.easing).toBe(TOAST_TIMING.inEase);
+
+  for (const id of ['d-dir', 'd-type']) {
+    const base = groupOf(id).variants.find(v => v.base);
+    expect(base?.params.duration, id).toBe(TOAST_TIMING.in);
+    expect(base?.params.easing, id).toBe(TOAST_TIMING.inEase);
+    expect(base?.params.hold, id).toBe(TOAST_TIMING.hold);
+    expect(base?.params.out, id).toBe(TOAST_TIMING.out);
+  }
+});
+
+test('通知の差分比較で、出るときのイージングは共有の値（LEAVE_EASE）を使う', () => {
+  const g = groupOf('d-dir');
+  const base = g.variants.find(v => v.base);
+  if (!base) throw new Error('基準がない');
+  const exit = buildTracks(g, base).tracks.find(t => !t.main);
+  expect(exit?.options.easing).toBe(LEAVE_EASE);
 });

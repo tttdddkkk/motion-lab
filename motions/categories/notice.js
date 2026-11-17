@@ -1,15 +1,13 @@
 /* モーション定義: 通知。チャットはコメントに含める（docs/adr/0014）。motions.js が集めて MOTIONS にする。追加したら stories/motions.stories.js にも1行足す */
 import { q, qa } from '../dom.js';
 import { settle } from '../runtime.js';
+import { LEAVE_EASE, TOAST_TIMING } from '../tokens.js';
 
 /* 通知のデモの舞台: アプリ画面に見立てたダミーの行を並べる。head には画面上部の要素の HTML を渡す。.ntf を返す */
 function mountNoticeStage(stage, head = '') {
   stage.innerHTML = `<div class="ntf">${head}${'<div class="ntf-row"></div>'.repeat(4)}</div>`;
   return q(stage, '.ntf');
 }
-
-/* 通知が出ていくときの加速。入るときより速く、すっと消える */
-const NOTICE_LEAVE_EASE = 'cubic-bezier(.4, 0, 1, 1)';
 
 /**
  * 通知の出入り: 入る → 見せる → 出る → 取り除く。
@@ -35,7 +33,7 @@ async function showNotice({ ctx, el, off, inMs, inEase, outMs, hold, alive }) {
   const leave = reduced
     ? [{ opacity: 1 }, { opacity: 0 }]
     : [{ transform: 'translateY(0)' }, { transform: off }];
-  await settle(el.animate(leave, { duration: ctx.dur(reduced ? 200 : outMs), easing: reduced ? 'linear' : NOTICE_LEAVE_EASE, fill: 'forwards' }));
+  await settle(el.animate(leave, { duration: ctx.dur(reduced ? 200 : outMs), easing: reduced ? 'linear' : LEAVE_EASE, fill: 'forwards' }));
   el.remove();
 }
 
@@ -47,12 +45,12 @@ export const NOTICE_MOTIONS = [
     name: 'トースト',
     feel: 'すっと・控えめ',
     use: '保存・送信の完了通知（タップで閉じられる）',
-    ms: 300,
+    ms: TOAST_TIMING.in,
     msLabel: '入る',
-    easing: 'cubic-bezier(.2, 0, 0, 1)',
+    easing: TOAST_TIMING.inEase,
     desc: '画面の下中央に、ピル型の通知が下からスライドインする。2.5秒見せてから下へ戻って消える。押せばすぐ閉じる。時間は入る長さで、出る長さは250ms。方向・出し方の違いは「差分比較」の「D. 通知」で比べられる。',
     setup(stage, ctx) {
-      const IN = 300, OUT = 250, HOLD = 2500;
+      const { in: IN, out: OUT, hold: HOLD, inEase } = TOAST_TIMING;
       const OFF = 'translateY(calc(100% + 20px))';   // 下端の外
       const root = mountNoticeStage(stage);
       const { wait } = ctx;
@@ -68,7 +66,7 @@ export const NOTICE_MOTIONS = [
         toast.innerHTML = '<span class="ntf-dot"></span>保存しました';
         root.append(toast);
         await showNotice({
-          ctx, el: toast, off: OFF, inMs: IN, inEase: 'cubic-bezier(.2, 0, 0, 1)', outMs: OUT,
+          ctx, el: toast, off: OFF, inMs: IN, inEase, outMs: OUT,
           // 押されるか、一定時間たつまで見せる
           hold: () => Promise.race([wait(HOLD), new Promise(r => toast.addEventListener('click', r, { once: true }))]),
           alive: () => my === token && root.isConnected,
