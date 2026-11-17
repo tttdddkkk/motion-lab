@@ -73,6 +73,12 @@ async function openViewer(hash = '') {
   return { page, errors };
 }
 
+/* 詳細の見出しがそのモーションで、一覧で選ばれているのがちょうど1つであること */
+async function expectSelected(page, motion) {
+  await expect(page.locator('#title').textContent()).resolves.toBe(motion.name);
+  await expect(page.locator('#list button[aria-current="true"]').count()).resolves.toBe(1);
+}
+
 const first = MOTIONS[0];
 const second = MOTIONS[1];
 
@@ -80,8 +86,7 @@ describe('ビューア', { timeout: 30000 }, () => {
   test('一覧にすべてのモーションが出て、先頭が選ばれている', async () => {
     const { page, errors } = await openViewer();
     await expect(page.locator('#list button').count()).resolves.toBe(MOTIONS.length);
-    await expect(page.locator('#title').textContent()).resolves.toBe(first.name);
-    await expect(page.locator('#list button[aria-current="true"]').count()).resolves.toBe(1);
+    await expectSelected(page, first);
     expect(errors).toEqual([]);
   });
 
@@ -164,8 +169,7 @@ describe('ビューア', { timeout: 30000 }, () => {
       addEventListener('hashchange', () => setTimeout(resolve, 0), { once: true });
       location.hash = '#no-such-motion';
     }));
-    await expect(page.locator('#title').textContent()).resolves.toBe(target.name);
-    await expect(page.locator('#list button[aria-current="true"]').count()).resolves.toBe(1);
+    await expectSelected(page, target);
     expect(errors).toEqual([]);   // 無効な id を処理しようとして例外になっていない
   });
 
