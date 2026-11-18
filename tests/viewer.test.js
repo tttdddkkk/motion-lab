@@ -288,4 +288,19 @@ describe('ビューア', { timeout: 30000 }, () => {
     expect(center).not.toBeNull();
     expect(Math.abs(/** @type {number} */ (center) - width * 0.9)).toBeLessThan(3);   // ボタン本来の座標（縮小前）で 90% の位置
   });
+
+  test('スマホ幅: 差分比較に切り替えると、モーションのプレビュー・詳細・コード・一覧が隠れる', async () => {
+    // スマホ幅では #viewer などを display: contents にしている。hidden 属性が効かなくなっていないことを確かめる
+    const { page, errors } = await openViewer('#compare', PHONE);
+    await page.locator('#compare').waitFor({ state: 'visible' });
+    for (const selector of ['#viewer', '#preview', '#viewer > header', '#facts', '.codebox', '#nav']) {
+      await expect(page.locator(selector).isVisible(), selector).resolves.toBe(false);
+    }
+    await page.locator('#mode button', { hasText: 'モーション' }).click();
+    for (const selector of ['#preview', '#facts', '.codebox', '#nav']) {
+      await expect(page.locator(selector).isVisible(), selector).resolves.toBe(true);
+    }
+    await expect(page.locator('#compare').isVisible()).resolves.toBe(false);
+    expect(errors).toEqual([]);
+  });
 });
