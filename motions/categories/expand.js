@@ -1,5 +1,6 @@
 /* モーション定義: 展開。motions.js が集めて MOTIONS にする。追加したら stories/motions.stories.js にも1行足す */
 import { q, qa } from '../dom.js';
+import { scaleOf } from '../runtime.js';
 
 /* 持ち上げ・降りる・フェード・中身の出現に使う、出だしが速く、ゆっくり止まるイージング */
 const LIFT = 'cubic-bezier(.2, 0, 0, 1)';
@@ -176,8 +177,8 @@ export const EXPAND_MOTIONS = [
       // 背表紙に重なる姿勢。本の左辺を軸に、背表紙の面が棚の背表紙と同じ位置・大きさになる移動と拡縮（FLIP）。
       // 測るのは変形がかかっていないとき（アニメーションの開始前）
       const poseOf = i => {
-        const sp = spines[i].getBoundingClientRect(), b = book.getBoundingClientRect();
-        const x = sp.right - b.left, y = sp.top + sp.height / 2 - (b.top + b.height / 2);
+        const sp = spines[i].getBoundingClientRect(), b = book.getBoundingClientRect(), k = scaleOf(stage);
+        const x = (sp.right - b.left) / k, y = (sp.top + sp.height / 2 - (b.top + b.height / 2)) / k;
         return `translate(${x}px, ${y}px) scale(${BOOKS[i].h / BOOK_H})`;
       };
       const open = async (i, { reduced, focus }) => {

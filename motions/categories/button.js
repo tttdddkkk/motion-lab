@@ -1,5 +1,6 @@
 /* モーション定義: ボタン。motions.js が集めて MOTIONS にする。追加したら stories/motions.stories.js にも1行足す */
 import { q } from '../dom.js';
+import { scaleOf } from '../runtime.js';
 
 /** @type {import('../types.js').Motion[]} */
 export const BUTTON_MOTIONS = [
@@ -69,9 +70,9 @@ export const BUTTON_MOTIONS = [
       stage.innerHTML = '<button class="demo-btn">タップしてね</button>';
       const btn = q(stage, '.demo-btn');
       const run = (x, y) => {
-        const r = btn.getBoundingClientRect();
-        const cx = x ?? r.width / 2, cy = y ?? r.height / 2;
-        const size = Math.max(r.width, r.height) * 2.2;
+        const w = btn.offsetWidth, h = btn.offsetHeight;   // 縮小表示でも変わらない、本来の大きさ
+        const cx = x ?? w / 2, cy = y ?? h / 2;
+        const size = Math.max(w, h) * 2.2;
         const dot = document.createElement('span');
         dot.className = 'ripple';
         Object.assign(dot.style, {
@@ -89,8 +90,8 @@ export const BUTTON_MOTIONS = [
         return a.finished.then(() => dot.remove());
       };
       btn.addEventListener('click', e => {
-        const r = btn.getBoundingClientRect();
-        run(e.clientX - r.left, e.clientY - r.top);
+        const r = btn.getBoundingClientRect(), k = scaleOf(stage);
+        run((e.clientX - r.left) / k, (e.clientY - r.top) / k);
       });
       return { run: () => run() };
     },
