@@ -12,3 +12,11 @@ export function makeCtx({ rate = () => 1, reduced = () => false } = {}) {
 
 /* アニメーションの終了を待つ。cancel されても例外にしない */
 export const settle = animation => animation.finished.catch(() => {});
+
+/**
+ * 要素の画面上の幅 ÷ 本来の幅。ビューアはスマホ幅でプレビューを縮小して表示するため、
+ * getBoundingClientRect() や clientX で測った座標は、この倍率で割らないと、デモ内の座標（px）と合わない。
+ * 縮小していなければ 1。測る対象は、自分では変形しない要素（ステージ）を渡す
+ * @param {HTMLElement} el
+ */
+export const scaleOf = el => (el.offsetWidth ? el.getBoundingClientRect().width / el.offsetWidth : 1);

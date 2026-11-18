@@ -18,10 +18,10 @@
 
 - `motions/motions.js` … モーション定義の入口（`MOTIONS` 配列）。ビューアと Storybook の両方がここを読む。中身は `motions/categories/` のカテゴリ別ファイルを集めたもの（ADR 0020）
 - `motions/categories/` … カテゴリごとのモーション定義（`button` `transition` `comment` `notice` `expand` `text`）と、そのカテゴリだけが使うヘルパー
-- `motions/runtime.js` / `motions/seek.js` … 複数のカテゴリが使う共通部分（`makeCtx` と `settle`、シークバー付きの再生）
+- `motions/runtime.js` / `motions/seek.js` … 複数のカテゴリが使う共通部分（`makeCtx` と `settle`、縮小表示の倍率 `scaleOf`、シークバー付きの再生）
 - `motions/motions.css` … 共有トークンとデモ用スタイル
 - `index.html` … スマホ向けビューアの骨組み（HTML だけ）。「差分比較」への切り替え（`#compare`）を含む
-- `motions/viewer.js` / `motions/viewer.css` … ビューアの動作と画面レイアウト。`index.html` から読み込む
+- `motions/viewer.js` / `motions/viewer.css` … ビューアの動作と画面レイアウト。`index.html` から読み込む。スマホ幅ではプレビューを上部に固定し、一覧を折りたためる（ADR 0022）
 - `motions/tokens.js` … 複数のファイルで同じ値を使うタイミングの定数（トーストの時間など）。通知モーションと差分比較で、値が別々に書かれてずれないようにする
 - `motions/dom.js` … DOM から要素を取る共通の道具（`q` / `qa`）。見つからなければ、探したセレクタつきの例外にする
 - `motions/compare.js` … 差分比較のデータ（バリアント定義とトラック生成）。`MOTIONS` とは別で、ストーリーは不要。`motions/compare-ui.js` が描画する（ADR 0012）

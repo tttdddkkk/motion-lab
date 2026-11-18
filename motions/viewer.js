@@ -68,6 +68,7 @@ function renderFilters() {
 
 function renderList() {
   $('list').innerHTML = '';
+  $('nav-count').textContent = `${visible().length}件`;
   visible().forEach(m => {
     const li = document.createElement('li');
     const b = document.createElement('button');
@@ -105,6 +106,7 @@ function durationText(ms) {
 function renderInfo() {
   const m = current();
   $('title').textContent = m.name;
+  $('now').textContent = m.name;
   $('desc').textContent = m.desc;
   $('facts').innerHTML = `
     <dt>感触</dt><dd>${m.feel}</dd>
@@ -142,6 +144,36 @@ async function play() {
 }
 
 $('play').onclick = play;
+
+/* スマホ幅の「原寸」表示。プレビューを画面全体に重ねる（見た目は viewer.css の .is-full） */
+const preview = $('preview');
+const phoneFit = $('phone-fit');
+/** @param {boolean} on */
+function setFull(on) {
+  if (preview.classList.contains('is-full') === on) return;
+  preview.classList.toggle('is-full', on);
+  if (on) {
+    phoneFit.setAttribute('role', 'dialog');
+    phoneFit.setAttribute('aria-modal', 'true');
+    phoneFit.setAttribute('aria-label', '原寸プレビュー');
+  } else {
+    phoneFit.removeAttribute('role');
+    phoneFit.removeAttribute('aria-modal');
+    phoneFit.removeAttribute('aria-label');
+  }
+  if (mode === 'viewer') $(on ? 'full-close' : 'full').focus();
+}
+$('full').onclick = () => setFull(true);
+$('full-close').onclick = () => setFull(false);
+$('full-play').onclick = play;
+phoneFit.onclick = e => { if (e.target === phoneFit) setFull(false); }; /* 暗い背景をタップで閉じる */
+
+/* 一覧は、スマホ幅では折りたためる。広い画面では見出しを出さないので、常に開いておく */
+const narrow = matchMedia('(max-width: 820px)');
+const syncNarrow = () => {
+  if (!narrow.matches) { /** @type {HTMLDetailsElement} */ ($('nav')).open = true; setFull(false); }
+};
+narrow.addEventListener('change', syncNarrow);
 loopBox.onchange = () => { if (loopBox.checked) play(); else state.runId++; };
 reducedBox.onchange = play;
 $('copy').onclick = async () => {
@@ -153,6 +185,7 @@ $('copy').onclick = async () => {
 };
 document.addEventListener('keydown', e => {
   const target = /** @type {HTMLElement} */ (e.target);
+  if (e.key === 'Escape') setFull(false);
   if (mode !== 'viewer' || target.matches('input, textarea')) return;
   const list = visible(); const i = list.findIndex(m => m.id === state.id);
   /* ボタンの上では Space を横取りしない（モーション内の一時停止ボタンなどを押せるように） */
@@ -167,7 +200,9 @@ let compareLoaded = false;
 /** @param {'viewer' | 'compare'} next */
 async function setMode(next) {
   state.runId++; /* モーションのループ再生を止める */
+  setFull(false);
   mode = next;
+  $('nav').hidden = mode !== 'viewer';
   $('viewer').hidden = mode !== 'viewer';
   $('compare').hidden = mode !== 'compare';
   $('filters').hidden = $('list').hidden = mode !== 'viewer';

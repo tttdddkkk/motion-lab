@@ -58,8 +58,11 @@ afterAll(async () => {
 });
 
 /* ページを開いて、コンソールのエラーを集める。errors が空であることも、各テストの検証に含める */
-async function openViewer(hash = '') {
-  const context = await browser.newContext({ viewport: { width: 1100, height: 900 } });
+const DESKTOP = { width: 1100, height: 900 };
+const PHONE = { width: 390, height: 760 };
+
+async function openViewer(hash = '', viewport = DESKTOP) {
+  const context = await browser.newContext({ viewport });
   contexts.push(context);
   await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: base });
   const page = await context.newPage();
@@ -217,6 +220,87 @@ describe('ビューア', { timeout: 30000 }, () => {
       await page.waitForTimeout(80);
     }
     await expect(page.locator('#title').textContent()).resolves.toBe(MOTIONS[MOTIONS.length - 1].name);
+    expect(errors).toEqual([]);
+  });
+
+  test('スマホ幅: 一覧を下までスクロールしても、プレビューが画面内に残り、選ぶとすぐ切り替わる', async () => {
+    const { page, errors } = await openViewer('', PHONE);
+    const last = MOTIONS[MOTIONS.length - 1];
+    await page.locator('#list button').last().scrollIntoViewIfNeeded();
+    const box = await page.locator('#preview').boundingBox();
+    expect(box && box.y).toBeGreaterThanOrEqual(0);
+    expect(box && box.y + box.height).toBeLessThanOrEqual(PHONE.height / 2 + 100);   // 画面の半分強まで。一覧の見える範囲を残す
+    await page.locator('#list button').last().click();
+    await expectSelected(page, last);
+    const after = await page.locator('#stage').boundingBox();
+    expect(after && after.y).toBeGreaterThanOrEqual(0);   // 選んだあとも、スクロールせずにプレビューが見えている
+    expect(errors).toEqual([]);
+  });
+
+  test('スマホ幅: 一覧を折りたためる。広い画面では見出しも「原寸」も出ない', async () => {
+    const { page } = await openViewer('', PHONE);
+    await expect(page.locator('#list').isVisible()).resolves.toBe(true);
+    await page.locator('#nav > summary').click();
+    await expect(page.locator('#list').isVisible()).resolves.toBe(false);
+    await page.locator('#nav > summary').click();
+    await expect(page.locator('#list').isVisible()).resolves.toBe(true);
+
+    const desktop = await openViewer();
+    await expect(desktop.page.locator('#nav > summary').isVisible()).resolves.toBe(false);
+    await expect(desktop.page.locator('#full').isVisible()).resolves.toBe(false);
+  });
+
+  test('スマホ幅: 「原寸」で実寸に拡大し、閉じる・Esc・URL での画面切り替えで戻る', async () => {
+    const { page, errors } = await openViewer('', PHONE);
+    const phoneWidth = async () => Math.round((await page.locator('.phone').boundingBox())?.width ?? 0);
+    const small = await phoneWidth();
+    expect(small).toBeLessThan(200);
+
+    await page.locator('#full').click();
+    await expect(phoneWidth()).resolves.toBe(260);
+    await page.locator('#full-close').click();
+    await expect(phoneWidth()).resolves.toBe(small);
+
+    await page.locator('#full').click();
+    await page.keyboard.press('Escape');
+    await expect(phoneWidth()).resolves.toBe(small);
+
+    await page.locator('#full').click();
+    await page.evaluate(() => { location.hash = '#compare'; });   // 原寸表示中はボタンが覆われるので、URL の変更で画面を切り替える
+    await page.locator('#compare').waitFor({ state: 'visible' });
+    await expect(page.locator('html').evaluate(el => getComputedStyle(el).overflow)).resolves.not.toBe('hidden');   // スクロールが固定されたままにならない
+    expect(errors).toEqual([]);
+  });
+
+  test('スマホ幅（縮小表示）でも、リップルはタップした位置から広がる', async () => {
+    const { page } = await openViewer('#ripple', PHONE);
+    await page.locator('#loop').uncheck();
+    const btn = page.locator('#stage .demo-btn');
+    const box = await btn.boundingBox();
+    if (!box) throw new Error('ボタンが見つからない');
+    await page.mouse.click(box.x + box.width * 0.9, box.y + box.height * 0.5);
+    const center = await page.evaluate(() => {
+      const dot = [...document.querySelectorAll('#stage .ripple')].pop();
+      if (!(dot instanceof HTMLElement)) return null;
+      return parseFloat(dot.style.left) + parseFloat(dot.style.width) / 2;
+    });
+    const width = await btn.evaluate(el => /** @type {HTMLElement} */ (el).offsetWidth);
+    expect(center).not.toBeNull();
+    expect(Math.abs(/** @type {number} */ (center) - width * 0.9)).toBeLessThan(3);   // ボタン本来の座標（縮小前）で 90% の位置
+  });
+
+  test('スマホ幅: 差分比較に切り替えると、モーションのプレビュー・詳細・コード・一覧が隠れる', async () => {
+    // スマホ幅では #viewer などを display: contents にしている。hidden 属性が効かなくなっていないことを確かめる
+    const { page, errors } = await openViewer('#compare', PHONE);
+    await page.locator('#compare').waitFor({ state: 'visible' });
+    for (const selector of ['#viewer', '#preview', '#viewer > header', '#facts', '.codebox', '#nav']) {
+      await expect(page.locator(selector).isVisible(), selector).resolves.toBe(false);
+    }
+    await page.locator('#mode button', { hasText: 'モーション' }).click();
+    for (const selector of ['#preview', '#facts', '.codebox', '#nav']) {
+      await expect(page.locator(selector).isVisible(), selector).resolves.toBe(true);
+    }
+    await expect(page.locator('#compare').isVisible()).resolves.toBe(false);
     expect(errors).toEqual([]);
   });
 });

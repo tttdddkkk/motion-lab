@@ -16,8 +16,11 @@
     <p class="brand">MOTION LAB<small>自分用モーションライブラリ</small></p>
     <p class="intro">認識合わせのための実物集です。動きを見比べて、選んだ値をコピーして使います。<a href="https://github.com/tttdddkkk/motion-lab/blob/main/docs/philosophy.md" target="_blank" rel="noopener" aria-label="なぜ作るか（新しいタブで開きます）">なぜ作るか</a></p>
     <div class="seg" id="mode" role="group" aria-label="表示の切り替え" style="margin-bottom:12px"></div>
-    <div class="filters" id="filters"></div>
-    <ul class="list" id="list"></ul>
+    <details class="nav" id="nav" open>
+      <summary>モーション一覧<span id="nav-count"></span></summary>
+      <div class="filters" id="filters"></div>
+      <ul class="list" id="list"></ul>
+    </details>
     <ul class="list" id="cmp-nav" hidden></ul>
   </aside>
 
@@ -28,17 +31,25 @@
     </header>
 
     <section class="stage-wrap">
-      <div class="phone"><div class="stage" id="stage"></div></div>
+      <div class="preview" id="preview">
+        <div class="phone-fit" id="phone-fit">
+          <div class="phone"><div class="stage" id="stage"></div></div>
+          <div class="full-bar">
+            <button class="play" id="full-play">▶ 再生</button>
+            <button class="btn-sub" id="full-close">閉じる</button>
+          </div>
+        </div>
 
-      <div class="side">
         <div class="controls">
+          <p class="now" id="now"></p>
           <button class="play" id="play">▶ 再生</button>
+          <button class="btn-sub full-open" id="full" aria-label="プレビューを原寸で見る">原寸</button>
           <div class="seg" id="speed" role="group" aria-label="再生速度"></div>
           <label class="check"><input type="checkbox" id="loop" checked> ループ</label>
           <label class="check"><input type="checkbox" id="reduced"> 動きを減らす</label>
         </div>
-        <dl class="facts" id="facts"></dl>
       </div>
+      <dl class="facts" id="facts"></dl>
     </section>
 
     <section class="codebox">
