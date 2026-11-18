@@ -27,7 +27,7 @@
 - `motions/compare.js` … 差分比較のデータ（バリアント定義とトラック生成）。`MOTIONS` とは別で、ストーリーは不要。`motions/compare-ui.js` が描画する（ADR 0012）
 - `stories/motions.stories.js` … 1モーション1行のストーリーと振る舞いテスト（`play`）
 - `motions/types.js` … JSDoc の型定義（`Motion` / `Ctx` / 差分比較のバリアントなど）。実行時には読まれない（ADR 0018）
-- `tests/` … `MOTIONS` とストーリーの対応漏れ、差分比較データの整合を検出するテスト
+- `tests/` … `MOTIONS` とストーリーの対応漏れ、差分比較データの整合を検出するテスト。`tests/viewer.test.js` はビューアの基本操作（一覧・フィルタ・速度・タブ・モード切り替え・URL の `#`）を、実際に Chromium で開いて確かめる
 
 ## 使い方
 

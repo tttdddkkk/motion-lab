@@ -9,7 +9,8 @@
     "noEmit": true,
     "strict": true,
     "noImplicitAny": false,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "types": ["node"]
   },
   "include": ["motions/**/*.js", "stories/**/*.js", "tests/**/*.js"]
 }
