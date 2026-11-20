@@ -28,4 +28,5 @@
 | [0019](0019-detect-duplicate-code.md) | ロジックの重複は共通化し、コピペ検出（jscpd）を CI で強制する | 採用 |
 | [0020](0020-split-motions-by-category.md) | モーション定義をカテゴリ別のファイルに分ける | 採用 |
 | [0021](0021-show-what-ms-means.md) | ビューアに「何の時間」を表示する（`msLabel`） | 採用 |
-| [0023](0023-compare-filter-by-category.md) | 差分比較の絞り込みを、印象ワードからカテゴリ（セクション）に変える | 採用 |
+| [0023](0023-custom-view-combine-effects.md) | 効果を重ねて動きを作る「カスタマイズ」ビューを、MOTIONS・差分比較とは別のデータで持つ | 採用 |
+| [0024](0024-compare-filter-by-category.md) | 差分比較の絞り込みを、印象ワードからカテゴリ（セクション）に変える | 採用 |

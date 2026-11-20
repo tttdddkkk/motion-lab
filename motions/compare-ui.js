@@ -3,8 +3,8 @@ import {
   COMPARE_GROUPS, SECTIONS, PAIR_SECTION, EASING_PRESETS,
   buildTracks, formatParams, toWaapiJson
 } from './compare.js';
+import { esc, REDUCED_NOTICE_HTML, bindReducedGate, playTracks } from './player.js';
 
-const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 /* 「どれを指している？」の選択肢の記号（A, B, C） */
 const LETTERS = 'ABC';
 const isPair = group => group.section === PAIR_SECTION;
@@ -41,10 +41,6 @@ const clipSupported = () => {
 export function mountCompare({ root, nav }) {
   /** @type {{ section: string | null, override: Map<string, unknown>, cards: Card[] }} */
   const state = { section: null, override: new Map(), cards: [] };
-  const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
-  let forcePlay = false;
-  const suppressed = () => mq.matches && !forcePlay;
-
   const catButtons = [{ id: '', title: 'すべて' }, ...SECTIONS].map(s =>
     `<button type="button" class="chip" data-cat="${esc(s.id)}" aria-pressed="${s.id === ''}">${esc(s.title)}</button>`).join('');
 
@@ -99,10 +95,7 @@ export function mountCompare({ root, nav }) {
         <h1>差分比較</h1>
         <p class="desc">口頭で伝わりにくい違いを、実物で並べて確認する。基準から1つの軸だけを変えている。</p>
       </header>
-      <div class="cmp-notice" data-notice hidden role="status">
-        この端末は「動きを減らす」設定（prefers-reduced-motion）が有効なため、再生を止めています。
-        <label><input type="checkbox" data-force> このページだけ再生する</label>
-      </div>
+      ${REDUCED_NOTICE_HTML}
       <div class="cmp-tags-bar"><span class="label">カテゴリ:</span>${catButtons}</div>
     </div>
     ${SECTIONS.map(s => `
@@ -162,39 +155,15 @@ export function mountCompare({ root, nav }) {
   }
 
   /* ---- 再生 ---- */
-  function reset(stage) {
-    [stage, ...stage.querySelectorAll('*')].forEach(el => el.getAnimations().forEach(a => a.cancel()));
-  }
+  const gate = bindReducedGate(root);
 
   function play(card) {
-    if (suppressed()) { flashNotice(); return Promise.resolve(); }
-    const { stage, group, variant } = card;
-    reset(stage);
-    stage.querySelectorAll('.is-idle').forEach(el => el.classList.remove('is-idle'));
-    const { tracks } = buildTracks(group, variant, card.over);
-    const done = [];
-    for (const t of tracks) {
-      const els = t.target === 'items'
-        ? [...stage.querySelectorAll('[data-i]')]
-        : [...stage.querySelectorAll(`[data-t="${t.target}"]`)];
-      els.forEach((el, i) => {
-        const extra = t.delays ? (t.delays[i] ?? 0) : (t.stagger || 0) * i;
-        const a = el.animate(t.keyframes, { ...t.options, delay: (t.options.delay || 0) + extra });
-        done.push(a.finished.catch(() => {}));
-      });
-    }
-    return Promise.all(done);
+    if (gate.suppressed()) { gate.flash(); return Promise.resolve(); }
+    return playTracks(card.stage, buildTracks(card.group, card.variant, card.over).tracks);
   }
 
   const visibleCards = scope => state.cards.filter(c => !c.el.hidden && scope(c));
   const playAll = scope => visibleCards(scope).forEach(c => play(c));
-
-  /* ---- 動きを減らす設定 ---- */
-  const notice = root.querySelector('[data-notice]');
-  const flashNotice = () => { notice.hidden = false; notice.scrollIntoView({ block: 'nearest' }); };
-  root.querySelector('[data-force]').onchange = e => { forcePlay = e.target.checked; };
-  mq.addEventListener?.('change', () => { notice.hidden = !mq.matches; });
-  notice.hidden = !mq.matches;
 
   /* ---- 絞り込み・ジャンプ・選択 ---- */
   function applyFilter() {
@@ -222,6 +191,6 @@ export function mountCompare({ root, nav }) {
     const b = e.target.closest('button'); if (!b) return;
     const id = b.dataset.jump ? `cmp-${b.dataset.jump}` : null;
     const target = id ? root.querySelector(`#${id}`) : root.querySelector(`[data-section="${b.dataset.jumpSection}"]`);
-    target?.scrollIntoView({ behavior: mq.matches ? 'auto' : 'smooth', block: 'start' });
+    target?.scrollIntoView({ behavior: gate.reduced() ? 'auto' : 'smooth', block: 'start' });
   };
 }
