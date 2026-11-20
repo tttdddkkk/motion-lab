@@ -393,6 +393,58 @@ describe('ビューア', { timeout: 30000 }, () => {
       expect(errors).toEqual([]);
     });
 
+    test('並べ替え・削除・追加・切り替えのあとも、フォーカスが操作した場所に残る', async () => {
+      const { page, errors } = await openViewer('#custom=@card;fade,400,0,ease-out,;slide-y,500,0,ease-out,distance:24;blur,400,0,ease-out,radius:8');
+      await page.waitForSelector('.cus-layer');
+      // どのボタンにいるかを、見出し（部品名）と data-act で表す
+      const focused = () => page.evaluate(() => {
+        const el = /** @type {HTMLElement} */ (document.activeElement);
+        const li = el.closest('[data-idx]');
+        return { act: el.dataset.act ?? el.dataset.f ?? el.dataset.subject ?? el.dataset.preset ?? el.dataset.tab ?? el.tagName, layer: li?.querySelector('strong')?.textContent ?? null };
+      });
+      const layer = name => page.locator('.cus-layer', { has: page.locator('strong', { hasText: name }) });
+
+      await layer('縦スライド').locator('[data-act="down"]').focus();
+      await page.keyboard.press('Enter');
+      // 末尾に着いて ↓ は押せなくなる。フォーカスは body に落ちず、同じ部品の ↑ に移る
+      await expect(layer('縦スライド').locator('[data-act="down"]').isDisabled()).resolves.toBe(true);
+      await expect(focused()).resolves.toEqual({ act: 'up', layer: '縦スライド' });
+      await page.keyboard.press('Enter');
+      await expect(focused()).resolves.toEqual({ act: 'up', layer: '縦スライド' });   // 動かした部品に付いていく（押し続けられる）
+      await expect(page.locator('.cus-layer strong').allTextContents()).resolves.toEqual(['フェード', '縦スライド', 'ぼかし']);
+
+      await layer('ぼかし').locator('[data-act="remove"]').focus();
+      await page.keyboard.press('Enter');
+      expect((await focused()).act).toBe('remove');   // 消した部品の隣の「削除」へ
+
+      await page.locator('[data-add-effect="rotate"]').focus();
+      await page.keyboard.press('Enter');
+      await expect(focused()).resolves.toEqual({ act: 'duration', layer: '回転' });   // 追加した部品の最初の入力欄
+
+      await page.locator('[data-subject="sparkle"]').focus();
+      await page.keyboard.press('Enter');
+      await expect(focused()).resolves.toMatchObject({ act: 'sparkle' });
+      await page.locator('[data-preset="pop"]').focus();
+      await page.keyboard.press('Enter');
+      await expect(focused()).resolves.toMatchObject({ act: 'pop' });
+      await page.locator('[data-tab="json"]').focus();
+      await page.keyboard.press('Enter');
+      await expect(focused()).resolves.toMatchObject({ act: 'json' });
+      expect(errors).toEqual([]);
+    });
+
+    test('出力の切り替えはトグルボタンで（role=tab にしない）、タイムラインは文字でも読める', async () => {
+      const { page, errors } = await openViewer('#custom=@card;fade,400,50,ease-out,');
+      await page.waitForSelector('.cus-layer');
+      await expect(page.locator('[data-tabs] [role="tab"]').count()).resolves.toBe(0);
+      await expect(page.locator('[data-tab="waapi"]').getAttribute('aria-pressed')).resolves.toBe('true');
+      await page.locator('[data-tab="json"]').click();
+      await expect(page.locator('[data-tab="json"]').getAttribute('aria-pressed')).resolves.toBe('true');
+      await expect(page.locator('[data-timeline]').textContent()).resolves.toContain('50ms から 450ms まで');
+      await expect(page.locator('[data-timeline] .cus-track').getAttribute('aria-hidden')).resolves.toBe('true');
+      expect(errors).toEqual([]);
+    });
+
     test('出発点は、どの対象でも選べる。選んでも対象は変わらず、対象を替えても部品は引き継がれる', async () => {
       const { page, errors } = await openViewer('#custom');
       await page.waitForSelector('.cus-layer');

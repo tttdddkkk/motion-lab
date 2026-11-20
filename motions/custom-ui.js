@@ -66,10 +66,10 @@ export function mountCustom({ root }) {
         <ol class="cus-layers" data-layers></ol>
         <div class="cus-row"><span class="label">部品を追加:</span><span class="cus-chips" data-add></span></div>
         <p class="cus-note" data-conflict hidden></p>
-        <div class="cus-timeline" data-timeline role="img" aria-label="各効果の開始と長さ"></div>
+        <div class="cus-timeline" data-timeline role="group" aria-label="各効果の開始と長さ"></div>
         <section class="codebox">
           <div class="codehead">
-            <div class="seg" data-tabs role="tablist"></div>
+            <div class="seg" data-tabs role="group" aria-label="出力の形式"></div>
             <span class="cus-copies">
               <button type="button" class="copy" data-share>共有URLをコピー</button>
               <button type="button" class="copy" data-copy>コピー</button>
@@ -99,9 +99,12 @@ export function mountCustom({ root }) {
   function refreshSummary() {
     q(root, '[data-total]').textContent = state.layers.length ? `全体 ${totalMs(state.layers)}ms` : '';
     q(root, '[data-code]').textContent = outputText();
-    q(root, '[data-timeline]').innerHTML = timeline(state.layers).map(bar =>
-      `<div class="cus-bar-row"><span>${esc(effectOf(bar.effect)?.name ?? bar.effect)}</span>`
-      + `<span class="cus-track"><i style="left:${bar.left}%;width:${bar.width}%"></i></span></div>`).join('');
+    /* 棒は見た目だけ（aria-hidden）。同じ内容を、文字（.cus-sr）でも読めるようにする */
+    q(root, '[data-timeline]').innerHTML = state.layers.map((l, i) => {
+      const bar = timeline(state.layers)[i];
+      return `<div class="cus-bar-row"><span>${esc(effectOf(l.effect)?.name ?? l.effect)}<span class="cus-sr">: ${l.delay}ms から ${l.delay + l.duration}ms まで</span></span>`
+        + `<span class="cus-track" aria-hidden="true"><i style="left:${bar.left}%;width:${bar.width}%"></i></span></div>`;
+    }).join('');
     history.replaceState(null, '', encodeLayers(state.layers, state.subject));
   }
 
@@ -147,12 +150,20 @@ export function mountCustom({ root }) {
     q(root, '[data-presets]').innerHTML = PRESETS.map(p =>
       `<button type="button" class="chip" data-preset="${p.id}" title="${esc(p.use)}">${esc(p.name)}</button>`).join('');
     q(root, '[data-tabs]').innerHTML = TABS.map(([key, label]) =>
-      `<button type="button" role="tab" data-tab="${key}" aria-pressed="${state.tab === key}">${label}</button>`).join('');
+      `<button type="button" data-tab="${key}" aria-pressed="${state.tab === key}">${label}</button>`).join('');
     stage.innerHTML = stageHtml(state.subject);
     refreshSummary();
   }
 
-  const restructure = () => { render(); autoPlay(); };
+  /* 再描画のあとにフォーカスを戻す。一覧を作り直すと、押したボタンが DOM から消えて、フォーカスが body に落ちるため。
+     候補を先頭から試し、無効なボタン（端の ↑ ↓ など）は飛ばす */
+  const focusAfter = (...selectors) => {
+    for (const selector of selectors) {
+      const el = /** @type {HTMLButtonElement | null} */ (root.querySelector(selector));
+      if (el && !el.disabled) { el.focus(); return; }
+    }
+  };
+  const restructure = (...focus) => { render(); focusAfter(...focus); autoPlay(); };
 
   /* ---- 操作 ---- */
   const layerOf = el => {
@@ -195,16 +206,27 @@ export function mountCustom({ root }) {
     const { act, addEffect, preset, tab, subject } = b.dataset;
     const layer = layerOf(b);
     const index = state.layers.indexOf(/** @type {any} */ (layer));
-    if (act === 'remove') { state.layers = state.layers.filter(l => l !== layer); restructure(); }
-    else if (act === 'up' || act === 'down') { state.layers = moveLayer(state.layers, index, act === 'up' ? -1 : 1); restructure(); }
-    else if (addEffect) {
+    const rest = '[data-add-effect], [data-preset]';
+    if (act === 'remove') {
+      state.layers = state.layers.filter(l => l !== layer);
+      const next = Math.min(index, state.layers.length - 1);   // 消した部品の次（なければ前）の「削除」へ
+      restructure(`[data-idx="${next}"] [data-act="remove"]`, rest);
+    } else if (act === 'up' || act === 'down') {
+      const to = index + (act === 'up' ? -1 : 1);
+      state.layers = moveLayer(state.layers, index, to - index);
+      /* 動かした部品に付いていく。端に着いて押せなくなったら、反対向きのボタンへ */
+      restructure(`[data-idx="${to}"] [data-act="${act}"]`, `[data-idx="${to}"] [data-act="${act === 'up' ? 'down' : 'up'}"]`, `[data-idx="${to}"] [data-act="remove"]`);
+    } else if (addEffect) {
       const next = makeLayer({ effect: addEffect });
-      if (next) { state.layers = [...state.layers, next]; restructure(); }
+      if (next) {
+        state.layers = [...state.layers, next];
+        restructure(`[data-idx="${state.layers.length - 1}"] [data-f="duration"]`, rest);   // 追加した部品の最初の入力欄へ
+      }
     } else if (preset) {
       const p = PRESETS.find(x => x.id === preset);
-      if (p) { state.layers = cloneLayers(p.layers); restructure(); }   // 対象は変えない
-    } else if (subject) { state.subject = subject; restructure(); }
-    else if (tab === 'waapi' || tab === 'json') { state.tab = tab; render(); }
+      if (p) { state.layers = cloneLayers(p.layers); restructure(`[data-preset="${preset}"]`); }   // 対象は変えない
+    } else if (subject) { state.subject = subject; restructure(`[data-subject="${subject}"]`); }
+    else if (tab === 'waapi' || tab === 'json') { state.tab = tab; render(); focusAfter(`[data-tab="${tab}"]`); }
     else if (b.dataset.copy !== undefined || b.dataset.share !== undefined) {
       const text = b.dataset.share !== undefined ? location.href : outputText();
       const label = b.dataset.label ??= b.textContent ?? '';

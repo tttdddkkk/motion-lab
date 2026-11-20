@@ -30,6 +30,8 @@
 .cus-bar-row { display: grid; grid-template-columns: 6.5em minmax(0, 1fr); gap: 8px; align-items: center; }
 .cus-track { position: relative; height: 8px; border-radius: 4px; background: var(--demo-row); }
 .cus-track i { position: absolute; top: 0; bottom: 0; border-radius: 4px; background: var(--accent-gradient); }
+/* 画面には出さず、スクリーンリーダーにだけ読ませる */
+.cus-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .cus-copies { display: flex; gap: 6px; flex-wrap: wrap; margin-left: auto; }
 .cus-copies .copy { margin-left: 0; min-width: 0; }
 
