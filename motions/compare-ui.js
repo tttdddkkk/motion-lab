@@ -109,9 +109,9 @@ export function mountCompare({ root, nav }) {
       </div>`).join('')}`;
 
   nav.innerHTML = SECTIONS.map(s =>
-    `<li><button type="button" data-jump-section="${s.id}"><strong>${esc(s.title)}</strong></button></li>`
+    `<li data-nav-section="${s.id}"><button type="button" data-jump-section="${s.id}"><strong>${esc(s.title)}</strong></button></li>`
     + COMPARE_GROUPS.filter(g => g.section === s.id).map(g =>
-      `<li><button type="button" data-jump="${g.id}">${esc(g.title)}</button></li>`).join('')).join('');
+      `<li data-nav-section="${s.id}"><button type="button" data-jump="${g.id}">${esc(g.title)}</button></li>`).join('')).join('');
 
   /* ---- カードの状態 ---- */
   for (const group of COMPARE_GROUPS) {
@@ -167,7 +167,10 @@ export function mountCompare({ root, nav }) {
 
   /* ---- 絞り込み・ジャンプ・選択 ---- */
   function applyFilter() {
-    root.querySelectorAll('.cmp-section').forEach(s => { s.hidden = !!state.section && s.dataset.section !== state.section; });
+    const off = id => !!state.section && id !== state.section;
+    root.querySelectorAll('.cmp-section').forEach(s => { s.hidden = off(s.dataset.section); });
+    /* 非表示のセクションへはジャンプできない（scrollIntoView が効かない）ので、ナビからも外す */
+    nav.querySelectorAll('[data-nav-section]').forEach(li => { li.hidden = off(li.dataset.navSection); });
   }
   root.querySelectorAll('[data-cat]').forEach(b => {
     b.onclick = () => {
