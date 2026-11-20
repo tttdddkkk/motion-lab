@@ -13,8 +13,12 @@ const CATS = [['all', 'すべて'], ['button', 'ボタン'], ['transition', '画
 const SPEEDS = [0.5, 1, 2];
 /** @type {['css' | 'waapi' | 'reduced', string][]} */
 const TABS = [['css', 'CSS'], ['waapi', 'WAAPI'], ['reduced', '動きを減らす場合']];
-/** @type {['viewer' | 'compare', string][]} */
-const MODES = [['viewer', 'モーション'], ['compare', '差分比較']];
+/** @typedef {'viewer' | 'compare' | 'custom'} Mode */
+/** @type {[Mode, string][]} */
+const MODES = [['viewer', 'モーション'], ['compare', '差分比較'], ['custom', 'カスタマイズ']];
+
+/** URL のハッシュが指す表示。#custom=... のように値が続く場合もある */
+const modeFromHash = () => (location.hash === '#compare' ? 'compare' : location.hash.startsWith('#custom') ? 'custom' : 'viewer');
 
 /* URL の #<id> を取り出す（PR のプレビュー確認用に、最初に開くモーションを指定できる）。壊れた % エスケープなら空文字 */
 function idFromHash() {
@@ -24,8 +28,8 @@ function idFromHash() {
 const hashId = idFromHash();
 const initialId = MOTIONS.some(m => m.id === hashId) ? hashId : MOTIONS[0].id;
 
-/** @type {'viewer' | 'compare'} */
-let mode = location.hash === '#compare' ? 'compare' : 'viewer';
+/** @type {Mode} */
+let mode = modeFromHash();
 /** @type {{ cat: string, id: string, rate: number, tab: 'css' | 'waapi' | 'reduced', runId: number, instance: import('./types.js').MotionInstance | null }} */
 const state = { cat: 'all', id: initialId, rate: 1, tab: 'css', runId: 0, instance: null };
 
@@ -194,10 +198,22 @@ document.addEventListener('keydown', e => {
   if (e.key === 'ArrowLeft' && list[i - 1]) select(list[i - 1].id);
 });
 
-/* 表示の切り替え（モーション / 差分比較） */
-let compareLoaded = false;
+/* 表示の切り替え（モーション / 差分比較 / カスタマイズ）。差分比較とカスタマイズは、初めて開くときに読み込む */
+/** @type {Record<'compare' | 'custom', { loaded: boolean, label: string, hash: () => string, mount: () => Promise<any> }>} */
+const LAZY = {
+  compare: {
+    loaded: false, label: '差分比較', hash: () => '#compare',
+    mount: async () => (await import('./compare-ui.js')).mountCompare({ root: $('compare'), nav: $('cmp-nav') })
+  },
+  custom: {
+    loaded: false, label: 'カスタマイズ', hash: () => (location.hash.startsWith('#custom') ? location.hash : '#custom'),
+    mount: async () => { customApi = (await import('./custom-ui.js')).mountCustom({ root: $('custom') }); }
+  }
+};
+/** @type {{ syncFromHash: () => void } | null} */
+let customApi = null;
 
-/** @param {'viewer' | 'compare'} next */
+/** @param {Mode} next */
 async function setMode(next) {
   state.runId++; /* モーションのループ再生を止める */
   setFull(false);
@@ -205,32 +221,34 @@ async function setMode(next) {
   $('nav').hidden = mode !== 'viewer';
   $('viewer').hidden = mode !== 'viewer';
   $('compare').hidden = mode !== 'compare';
+  $('custom').hidden = mode !== 'custom';
   $('filters').hidden = $('list').hidden = mode !== 'viewer';
   $('cmp-nav').hidden = mode !== 'compare';
   renderMode();
-  if (mode === 'compare') {
-    $('stage').replaceChildren(); /* 非表示のモーションを動かし続けない（戻ったときに作り直す） */
-    state.instance = null;
-    history.replaceState(null, '', '#compare');
-    if (!compareLoaded) {
-      compareLoaded = true;
-      try {
-        const { mountCompare } = await import('./compare-ui.js');
-        mountCompare({ root: $('compare'), nav: $('cmp-nav') });
-      } catch (e) {
-        console.error(e);
-        compareLoaded = false;
-        $('compare').textContent = '差分比較を読み込めませんでした。';
-      }
-    }
-  } else {
-    select(state.id);
+  if (mode === 'viewer') { select(state.id); return; }
+  $('stage').replaceChildren(); /* 非表示のモーションを動かし続けない（戻ったときに作り直す） */
+  state.instance = null;
+  const lazy = LAZY[mode];
+  history.replaceState(null, '', lazy.hash());
+  if (lazy.loaded) return;
+  lazy.loaded = true;
+  try {
+    await lazy.mount();
+  } catch (e) {
+    console.error(e);
+    lazy.loaded = false;
+    $(mode).textContent = `${lazy.label}を読み込めませんでした。`;
   }
 }
 
 /* ページを開いたまま # だけが変わった場合（再読み込みされない）にも追従する */
 window.addEventListener('hashchange', () => {
-  if (location.hash === '#compare') { if (mode !== 'compare') setMode('compare'); return; }
+  const target = modeFromHash();
+  if (target === 'custom') {
+    if (mode !== 'custom') setMode('custom'); else customApi?.syncFromHash();
+    return;
+  }
+  if (target === 'compare') { if (mode !== 'compare') setMode('compare'); return; }
   const id = idFromHash();
   if (!MOTIONS.some(m => m.id === id)) return;
   if (mode !== 'viewer') setMode('viewer');
@@ -239,4 +257,4 @@ window.addEventListener('hashchange', () => {
 
 renderFilters(); renderSpeed(); renderTabs(); renderMode();
 select(state.id);
-if (mode === 'compare') setMode('compare');
+if (mode !== 'viewer') setMode(mode);

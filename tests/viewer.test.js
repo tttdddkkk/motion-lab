@@ -303,4 +303,227 @@ describe('ビューア', { timeout: 30000 }, () => {
     await expect(page.locator('#compare').isVisible()).resolves.toBe(false);
     expect(errors).toEqual([]);
   });
+
+  describe('カスタマイズ', () => {
+    const layerNames = page => page.locator('.cus-layer strong').allTextContents();
+
+    test('切り替えると編集画面が出て、モーションが隠れる。#custom を直接開いても出る', async () => {
+      const { page, errors } = await openViewer();
+      await page.locator('#mode button', { hasText: 'カスタマイズ' }).click();
+      await page.waitForSelector('.cus-layer');
+      await expect(page.locator('#custom').isVisible()).resolves.toBe(true);
+      await expect(page.locator('#viewer, #compare').evaluateAll(els => els.every(el => /** @type {HTMLElement} */ (el).hidden))).resolves.toBe(true);
+      await expect(page.evaluate(() => location.hash.startsWith('#custom'))).resolves.toBe(true);
+      await page.locator('#mode button', { hasText: 'モーション' }).click();
+      await expect(page.locator('#custom').isHidden()).resolves.toBe(true);
+      expect(errors).toEqual([]);
+
+      const direct = await openViewer('#custom');
+      await direct.page.waitForSelector('.cus-layer');
+      await expect(direct.page.locator('#viewer').isHidden()).resolves.toBe(true);
+      expect(direct.errors).toEqual([]);
+    });
+
+    test('効果の追加・削除・並べ替え・出発点で、一覧とコードと URL が変わる', async () => {
+      const { page, errors } = await openViewer('#custom');
+      await page.waitForSelector('.cus-layer');
+      const before = await layerNames(page);
+      expect(before.length).toBeGreaterThan(0);
+
+      await page.locator('[data-add-effect="rotate"]').click();
+      await expect(layerNames(page)).resolves.toEqual([...before, '回転']);
+      await expect(page.locator('[data-code]').textContent()).resolves.toContain('rotate(');
+      await expect(page.evaluate(() => location.hash)).resolves.toContain('rotate,');
+      await expect(page.locator('[data-add-effect="rotate"]').count()).resolves.toBe(0);   // 同じ効果は1回まで
+
+      await page.locator('.cus-layer:last-child [data-act="up"]').click();
+      await expect(layerNames(page).then(n => n[n.length - 2])).resolves.toBe('回転');
+      await page.locator('.cus-layer:has(strong:text("回転")) [data-act="remove"]').click();
+      await expect(layerNames(page)).resolves.toEqual(before);
+
+      await page.locator('[data-preset="pop"]').click();
+      await expect(layerNames(page)).resolves.toEqual(['フェード', '拡大縮小']);
+      await page.locator('.cus-layer [data-act="remove"]').first().click();
+      await page.locator('.cus-layer [data-act="remove"]').first().click();
+      await expect(page.locator('.cus-empty').isVisible()).resolves.toBe(true);
+      expect(errors).toEqual([]);
+    });
+
+    test('スライダーで値を変えると、表示・コード・タイムラインが追従し、再生が実際に動く', async () => {
+      const { page, errors } = await openViewer('#custom=fade,400,0,ease-out,');
+      await page.waitForSelector('.cus-layer');
+      await page.locator('[data-f="duration"]').fill('800');
+      await expect(page.locator('[data-out="duration"]').textContent()).resolves.toBe('800ms');
+      await expect(page.locator('[data-code]').textContent()).resolves.toContain('duration: 800');
+      await expect(page.locator('[data-total]').textContent()).resolves.toContain('800ms');
+      await page.locator('[data-tab="json"]').click();
+      await expect(page.locator('[data-code]').textContent().then(t => JSON.parse(t ?? '').layers[0].duration)).resolves.toBe(800);
+
+      await page.locator('[data-play]').click();
+      await expect(page.evaluate(() => document.querySelector('[data-t="subject"]')?.getAnimations().length)).resolves.toBeGreaterThan(0);
+      expect(errors).toEqual([]);
+    });
+
+    test('URL の # から組み合わせを復元する。壊れた値でも落ちず、既定の組み合わせになる', async () => {
+      const ok = await openViewer('#custom=@sparkle;blur,300,40,linear,radius:12;scale,450,0,spring,from:0.8');
+      await ok.page.waitForSelector('.cus-layer');
+      await expect(layerNames(ok.page)).resolves.toEqual(['ぼかし', '拡大縮小']);
+      await expect(ok.page.locator('.cus-layer [data-f="p:radius"]').first().inputValue()).resolves.toBe('12');
+      await expect(ok.page.locator('.cus-sparkle').count()).resolves.toBe(1);   // @sparkle で対象も復元される
+      expect(ok.errors).toEqual([]);
+
+      const broken = await openViewer('#custom=%E0%A4%A');
+      await broken.page.waitForSelector('.cus-layer');
+      await expect(layerNames(broken.page).then(n => n.length)).resolves.toBeGreaterThan(0);
+      expect(broken.errors).toEqual([]);
+
+      // 開いたまま # だけが変わったときも追従する
+      await ok.page.evaluate(() => { location.hash = '#custom=fade,200,0,linear,'; });
+      await expect.poll(() => layerNames(ok.page)).toEqual(['フェード']);
+    });
+
+    test('対象を切り替えると、動かす要素が替わり、URL にも残る', async () => {
+      const { page, errors } = await openViewer('#custom');
+      await page.waitForSelector('.cus-layer');
+      for (const [id, selector] of [['sparkle', '.cus-sparkle'], ['button', '.demo-btn'], ['card', '.cus-card']]) {
+        await page.locator(`[data-subject="${id}"]`).click();
+        await expect(page.locator(`[data-stage] ${selector}[data-t="subject"]`).count(), id).resolves.toBe(1);
+        await expect(page.evaluate(() => location.hash), id).resolves.toContain(`@${id}`);
+      }
+      expect(errors).toEqual([]);
+    });
+
+    test('並べ替え・削除・追加・切り替えのあとも、フォーカスが操作した場所に残る', async () => {
+      const { page, errors } = await openViewer('#custom=@card;fade,400,0,ease-out,;slide-y,500,0,ease-out,distance:24;blur,400,0,ease-out,radius:8');
+      await page.waitForSelector('.cus-layer');
+      // どのボタンにいるかを、見出し（部品名）と data-act で表す
+      const focused = () => page.evaluate(() => {
+        const el = /** @type {HTMLElement} */ (document.activeElement);
+        const li = el.closest('[data-idx]');
+        return { act: el.dataset.act ?? el.dataset.f ?? el.dataset.subject ?? el.dataset.preset ?? el.dataset.tab ?? el.tagName, layer: li?.querySelector('strong')?.textContent ?? null };
+      });
+      const layer = name => page.locator('.cus-layer', { has: page.locator('strong', { hasText: name }) });
+
+      await layer('縦スライド').locator('[data-act="down"]').focus();
+      await page.keyboard.press('Enter');
+      // 末尾に着いて ↓ は押せなくなる。フォーカスは body に落ちず、同じ部品の ↑ に移る
+      await expect(layer('縦スライド').locator('[data-act="down"]').isDisabled()).resolves.toBe(true);
+      await expect(focused()).resolves.toEqual({ act: 'up', layer: '縦スライド' });
+      await page.keyboard.press('Enter');
+      await expect(focused()).resolves.toEqual({ act: 'up', layer: '縦スライド' });   // 動かした部品に付いていく（押し続けられる）
+      await expect(page.locator('.cus-layer strong').allTextContents()).resolves.toEqual(['フェード', '縦スライド', 'ぼかし']);
+
+      await layer('ぼかし').locator('[data-act="remove"]').focus();
+      await page.keyboard.press('Enter');
+      expect((await focused()).act).toBe('remove');   // 消した部品の隣の「削除」へ
+
+      await page.locator('[data-add-effect="rotate"]').focus();
+      await page.keyboard.press('Enter');
+      await expect(focused()).resolves.toEqual({ act: 'duration', layer: '回転' });   // 追加した部品の最初の入力欄
+
+      await page.locator('[data-subject="sparkle"]').focus();
+      await page.keyboard.press('Enter');
+      await expect(focused()).resolves.toMatchObject({ act: 'sparkle' });
+      await page.locator('[data-preset="pop"]').focus();
+      await page.keyboard.press('Enter');
+      await expect(focused()).resolves.toMatchObject({ act: 'pop' });
+      await page.locator('[data-tab="json"]').focus();
+      await page.keyboard.press('Enter');
+      await expect(focused()).resolves.toMatchObject({ act: 'json' });
+      expect(errors).toEqual([]);
+    });
+
+    test('出力の切り替えはトグルボタンで（role=tab にしない）、タイムラインは文字でも読める', async () => {
+      const { page, errors } = await openViewer('#custom=@card;fade,400,50,ease-out,');
+      await page.waitForSelector('.cus-layer');
+      await expect(page.locator('[data-tabs] [role="tab"]').count()).resolves.toBe(0);
+      await expect(page.locator('[data-tab="waapi"]').getAttribute('aria-pressed')).resolves.toBe('true');
+      await page.locator('[data-tab="json"]').click();
+      await expect(page.locator('[data-tab="json"]').getAttribute('aria-pressed')).resolves.toBe('true');
+      await expect(page.locator('[data-timeline]').textContent()).resolves.toContain('50ms から 450ms まで');
+      await expect(page.locator('[data-timeline] .cus-track').getAttribute('aria-hidden')).resolves.toBe('true');
+      expect(errors).toEqual([]);
+    });
+
+    test('出発点は、どの対象でも選べる。選んでも対象は変わらず、対象を替えても部品は引き継がれる', async () => {
+      const { page, errors } = await openViewer('#custom');
+      await page.waitForSelector('.cus-layer');
+      const presets = () => page.locator('[data-preset]').count();
+      const all = await presets();
+      await page.locator('[data-subject="sparkle"]').click();
+      await expect(presets()).resolves.toBe(all);   // 対象で絞り込まない
+      await page.locator('[data-preset="rise"]').click();
+      await expect(page.locator('.cus-sparkle').count()).resolves.toBe(1);   // 対象は切り替わらない
+      await expect(page.evaluate(() => location.hash)).resolves.toContain('@sparkle');
+
+      await page.locator('[data-preset="rainbow"]').click();
+      const names = await layerNames(page);
+      await page.locator('[data-subject="card"]').click();
+      await expect(layerNames(page)).resolves.toEqual(names);   // 対象を替えても、重ねた部品はそのまま
+      await expect(page.locator('.cus-card').count()).resolves.toBe(1);
+      expect(errors).toEqual([]);
+    });
+
+    test('揺れの細かい設定（方向・回数・減衰・質感）が、コードと動きに反映される', async () => {
+      const { page, errors } = await openViewer('#custom');
+      await page.waitForSelector('.cus-layer');
+      await page.locator('[data-preset="wobble"]').click();
+      await expect(layerNames(page)).resolves.toEqual(['揺れ']);
+      await expect(page.locator('.cus-layer [data-f="easing"]').count()).resolves.toBe(0);   // 揺れはイージングを選ばせない
+      await page.locator('[data-f="p:axis"]').selectOption({ label: '縦' });
+      await page.locator('[data-f="p:count"]').fill('4');
+      await page.locator('[data-f="p:feel"]').selectOption({ label: 'カクカク' });
+      const code = await page.locator('[data-code]').textContent();
+      expect(code).toContain('translateY(');
+      expect(code).not.toContain('translateX(');
+      expect(code?.match(/easing: 'linear'/g)?.length).toBeGreaterThanOrEqual(5);   // キーフレームごとの質感
+      await expect(page.evaluate(() => location.hash)).resolves.toMatch(/axis:1\|amplitude:\d+\|count:4\|decay:40\|feel:1/);
+      await page.locator('[data-play]').click();
+      const frames = await page.evaluate(() => /** @type {KeyframeEffect} */ (document.querySelector('[data-t="subject"]')?.getAnimations()[0].effect).getKeyframes().length);
+      expect(frames).toBe(4 + 2);
+      expect(errors).toEqual([]);
+    });
+
+    test('opacity を動かす部品（フェードとブリンク）は同時に追加できず、理由が出る', async () => {
+      const { page, errors } = await openViewer('#custom=@card;blink,600,0,linear,count:3');
+      await page.waitForSelector('.cus-layer');
+      await expect(page.locator('[data-add-effect="fade"]').count()).resolves.toBe(0);
+      await expect(page.locator('[data-conflict]').textContent()).resolves.toContain('フェード');
+      await page.locator('.cus-layer [data-act="remove"]').click();
+      await expect(page.locator('[data-add-effect="fade"]').count()).resolves.toBe(1);
+      await expect(page.locator('[data-conflict]').isHidden()).resolves.toBe(true);
+      expect(errors).toEqual([]);
+    });
+
+    test('ぼかしと色変化は filter を重ねて両方かかる（composite: add）。バウンスと拡大縮小の transform も打ち消し合わない', async () => {
+      const { page, errors } = await openViewer('#custom=@sparkle;blur,1000,0,linear,radius:20;hue,1000,0,linear,angle:180;bounce,1000,0,linear,height:40|count:1|decay:0|squash:0;scale,1000,0,linear,from:2');
+      await page.waitForSelector('.cus-layer');
+      await page.locator('[data-play]').click();
+      await page.waitForTimeout(250);
+      const style = await page.evaluate(() => {
+        const el = /** @type {HTMLElement} */ (document.querySelector('[data-t="subject"]'));
+        for (const a of el.getAnimations()) a.pause();   // 途中の見た目で止めて、合成された値を読む
+        const cs = getComputedStyle(el);
+        const m = new DOMMatrix(cs.transform);
+        return { filter: cs.filter, ty: m.m42, sx: m.a };
+      });
+      expect(style.filter).toMatch(/blur/);
+      expect(style.filter).toMatch(/hue-rotate/);
+      expect(style.ty).toBeLessThan(-1);   // バウンスで上がっている
+      expect(style.sx).toBeGreaterThan(1.05);   // 拡大縮小も効いている（2倍から戻る途中）
+      expect(errors).toEqual([]);
+    });
+
+    test('スマホ幅: 切り替えるとモーションの UI が隠れ、編集画面が見える', async () => {
+      const { page, errors } = await openViewer('#custom', PHONE);
+      await page.locator('#custom').waitFor({ state: 'visible' });
+      for (const selector of ['#viewer', '#preview', '.codebox:not(#custom .codebox)', '#nav']) {
+        await expect(page.locator(selector).first().isVisible(), selector).resolves.toBe(false);
+      }
+      await expect(page.locator('.cus-preview').isVisible()).resolves.toBe(true);
+      const overflow = await page.evaluate(() => document.documentElement.scrollWidth - innerWidth);
+      expect(overflow).toBeLessThanOrEqual(0);   // 横にはみ出さない
+      expect(errors).toEqual([]);
+    });
+  });
 });
