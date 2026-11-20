@@ -301,6 +301,33 @@ const EXTRA_STEPS = {
       cancelAll(stage);
     });
   },
+
+  'morph-text': async ({ motion, stage, step }) => {
+    await step('モーフィング・通常: しきい値フィルターがかかり、ぼかしを使う', async () => {
+      const spy = spyAnimate();
+      try {
+        await startDemo(motion, stage, false);
+        await expect(getComputedStyle(stage.querySelector('.tx-morph-text')).filter).toContain('url(');
+        const props = spy.keyframes.flat().flatMap(f => Object.keys(f));
+        await expect(props).toContain('filter');
+      } finally {
+        spy.restore();
+      }
+      cancelAll(stage);
+    });
+    await step('モーフィング・動きを減らす: フィルターを外し、ぼかさない', async () => {
+      const spy = spyAnimate();
+      try {
+        await startDemo(motion, stage, true);
+        await expect(getComputedStyle(stage.querySelector('.tx-morph-text')).filter).toBe('none');
+        const props = spy.keyframes.flat().flatMap(f => Object.keys(f));
+        await expect(props).not.toContain('filter');
+      } finally {
+        spy.restore();
+      }
+      cancelAll(stage);
+    });
+  },
 };
 
 /* ---- ストーリーの定義 ---- */
@@ -366,3 +393,4 @@ export const CardDraw = story('card-draw');
 export const Typewriter = story('typewriter');
 export const Ticker = story('ticker');
 export const SyncHighlight = story('sync-highlight');
+export const MorphText = story('morph-text');

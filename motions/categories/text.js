@@ -259,4 +259,136 @@ const scroll = list.animate(k, { duration: TOTAL, fill: 'both' });
 }`
     }
   },
+
+  {
+    id: 'morph-text',
+    cat: 'text',
+    name: 'モーフィング（溶けて変わる）',
+    feel: '柔らかい・変身',
+    use: 'キャッチコピーの切り替え・ヒーロー見出し・ローディング文言',
+    ms: 1000,
+    msLabel: '溶け合う時間',
+    easing: 'linear',
+    desc: '文字がにじんで溶け、別の言葉に変わる。ぼかしを強めながら消える文字と、ぼかしがほどけながら現れる文字を重ね、全体にしきい値フィルターをかけて輪郭をくっきり保つ。言葉は1.2秒見せてから切り替わる。時間は溶け合う長さ。',
+    setup(stage, ctx) {
+      const HOLD = 1200;   // 1つの言葉を見せる時間
+      const MORPH = 1000;  // 溶け合う時間
+      const STEPS = 12;    // 溶け合いのキーフレームの数（ぼかしは直線でなく曲線なので、細かく刻む）
+      const MAX_BLUR = 40;
+      const BLUR = 2;      // ぼかしの強さの係数。文字が大きいほど大きくできる
+      const WORDS = ['溶ける', 'ことば', 'かたち', '変わる'];
+
+      // フィルターの matrix の最後の行（0 0 0 255 -140）が「しきい値」: 薄く透けた部分は消え、濃い部分はくっきり残る。
+      // これで、ぼかした2つの文字が溶け合って見える
+      stage.innerHTML = `
+        <div class="tx-morph" role="img" aria-label="${WORDS.join('、')}">
+          <svg class="tx-morph-defs" aria-hidden="true" focusable="false">
+            <filter id="tx-morph-goo" color-interpolation-filters="sRGB">
+              <feColorMatrix in="SourceGraphic" type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 255 -140"/>
+            </filter>
+          </svg>
+          <div class="tx-morph-text" aria-hidden="true"><span class="tx-morph-a"></span><span class="tx-morph-b"></span></div>
+        </div>`;
+      const text = q(stage, '.tx-morph-text');
+      const a = q(stage, '.tx-morph-a');   // 消えていく側
+      const b = q(stage, '.tx-morph-b');   // 現れる側
+      a.textContent = WORDS[0];
+      let token = 0;
+
+      // 進み具合 f（0〜1）でのぼかしと不透明度。端でぼかしが無限大にならないよう上限を決める
+      const blurIn = f => Math.min(BLUR / f - BLUR, MAX_BLUR);
+      const fadeIn = f => Math.pow(f, .4);
+
+      const run = async () => {
+        const my = ++token;
+        const reduced = ctx.reduced();
+        text.classList.toggle('is-static', reduced);   // 動きを減らす: しきい値フィルターを外す
+        const total = HOLD + MORPH;
+        const at = f => (HOLD + f * MORPH) / total;    // 溶け合いの進み具合 → keyframe の offset
+        /** @type {KeyframeAnimationOptions} */
+        const opt = { duration: ctx.dur(total), easing: 'linear', fill: 'both' };
+        let prev = [];
+        for (let i = 0; i < WORDS.length; i++) {
+          if (my !== token || !stage.isConnected) return;
+          a.textContent = WORDS[i];
+          b.textContent = WORDS[(i + 1) % WORDS.length];
+          prev.forEach(x => x.cancel());
+          let out, inn;
+          if (reduced) {
+            // 動きを減らす: ぼかさず、不透明度だけで入れ替える
+            out = a.animate([{ opacity: 1, offset: at(0) }, { opacity: 0, offset: 1 }], opt);
+            inn = b.animate([{ opacity: 0, offset: at(0) }, { opacity: 1, offset: 1 }], opt);
+          } else {
+            const outFrames = [{ opacity: 1, filter: 'blur(0px)', offset: 0 }];
+            const inFrames = [{ opacity: 0, filter: `blur(${MAX_BLUR}px)`, offset: 0 }];
+            for (let k = 1; k <= STEPS; k++) {
+              const f = k / STEPS;
+              // 消える側は、進み具合を反転させて同じ式を使う
+              outFrames.push({ opacity: k === STEPS ? 0 : fadeIn(1 - f), filter: `blur(${(k === STEPS ? MAX_BLUR : blurIn(1 - f)).toFixed(2)}px)`, offset: at(f) });
+              inFrames.push({ opacity: fadeIn(f), filter: `blur(${(k === STEPS ? 0 : blurIn(f)).toFixed(2)}px)`, offset: at(f) });
+            }
+            // 溶け合い始めるまでは、それぞれ最初の状態を保つ
+            outFrames.splice(1, 0, { ...outFrames[0], offset: at(0) });
+            inFrames.splice(1, 0, { ...inFrames[0], offset: at(0) });
+            out = a.animate(outFrames, opt);
+            inn = b.animate(inFrames, opt);
+          }
+          prev = [out, inn];
+          await Promise.all([settle(out), settle(inn)]);
+        }
+      };
+      return { run };
+    },
+    code: {
+      css: `/* 2つの文字を同じ場所に重ね、全体にしきい値フィルターをかける。
+   ぼかして薄くなった部分はフィルターで消え、2つの文字が溶け合って見える */
+.morph { filter: url(#goo); }
+.morph span { grid-area: 1 / 1; }
+.out { animation: morph-out 1s linear forwards; }
+.in  { animation: morph-in  1s linear forwards; }
+@keyframes morph-out {
+  0%   { filter: blur(0);    opacity: 1; }
+  50%  { filter: blur(2px);  opacity: .76; }
+  80%  { filter: blur(8px);  opacity: .52; }
+  100% { filter: blur(40px); opacity: 0; }
+}
+@keyframes morph-in {
+  0%   { filter: blur(40px); opacity: 0; }
+  20%  { filter: blur(8px);  opacity: .52; }
+  50%  { filter: blur(2px);  opacity: .76; }
+  100% { filter: blur(0);    opacity: 1; }
+}
+/* HTML に1つ置く（画面には出さない）。最後の行（0 0 0 255 -140）がしきい値 */
+/* <svg width="0" height="0"><filter id="goo" color-interpolation-filters="sRGB">
+     <feColorMatrix type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 255 -140"/>
+   </filter></svg> */`,
+      waapi: `const HOLD = 1200, MORPH = 1000, STEPS = 12, MAX = 40, K = 2;   // K: ぼかしの強さの係数（文字が大きいほど大きくできる）
+const blur = f => Math.min(K / f - K, MAX);   // f: 溶け合いの進み具合（0〜1）
+const fade = f => Math.pow(f, .4);
+const at = f => (HOLD + f * MORPH) / (HOLD + MORPH);
+
+// out: 消える文字、incoming: 現れる文字（上の CSS の .morph に重ねてある）
+const outFrames = [{ opacity: 1, filter: 'blur(0px)', offset: 0 },
+                   { opacity: 1, filter: 'blur(0px)', offset: at(0) }];
+const inFrames  = [{ opacity: 0, filter: \`blur(\${MAX}px)\`, offset: 0 },
+                   { opacity: 0, filter: \`blur(\${MAX}px)\`, offset: at(0) }];
+for (let k = 1; k <= STEPS; k++) {
+  const f = k / STEPS;
+  outFrames.push({ opacity: k === STEPS ? 0 : fade(1 - f), filter: \`blur(\${k === STEPS ? MAX : blur(1 - f)}px)\`, offset: at(f) });
+  inFrames.push({ opacity: fade(f), filter: \`blur(\${k === STEPS ? 0 : blur(f)}px)\`, offset: at(f) });
+}
+const opt = { duration: HOLD + MORPH, easing: 'linear', fill: 'both' };
+out.animate(outFrames, opt);
+incoming.animate(inFrames, opt);
+// 終わったら文字を入れ替え（out に今の言葉、incoming に次の言葉）、次の言葉でもう一度`,
+      reduced: `@media (prefers-reduced-motion: reduce) {
+  /* ぼかさず、しきい値フィルターも外して、不透明度だけで入れ替える */
+  .morph { filter: none; }
+  .out { animation: fade-out 1s linear forwards; }
+  .in  { animation: fade-in  1s linear forwards; }
+}
+@keyframes fade-out { from { opacity: 1; } to { opacity: 0; } }
+@keyframes fade-in  { from { opacity: 0; } to { opacity: 1; } }`
+    }
+  },
 ];
