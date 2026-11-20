@@ -360,15 +360,16 @@ describe('ビューア', { timeout: 30000 }, () => {
       await expect(page.locator('[data-code]').textContent().then(t => JSON.parse(t ?? '').layers[0].duration)).resolves.toBe(800);
 
       await page.locator('[data-play]').click();
-      await expect(page.evaluate(() => document.querySelector('[data-t="card"]')?.getAnimations().length)).resolves.toBeGreaterThan(0);
+      await expect(page.evaluate(() => document.querySelector('[data-t="subject"]')?.getAnimations().length)).resolves.toBeGreaterThan(0);
       expect(errors).toEqual([]);
     });
 
     test('URL の # から組み合わせを復元する。壊れた値でも落ちず、既定の組み合わせになる', async () => {
-      const ok = await openViewer('#custom=blur,300,40,linear,12;scale,450,0,spring,0.8');
+      const ok = await openViewer('#custom=@sparkle;blur,300,40,linear,radius:12;scale,450,0,spring,from:0.8');
       await ok.page.waitForSelector('.cus-layer');
       await expect(layerNames(ok.page)).resolves.toEqual(['ぼかし', '拡大縮小']);
-      await expect(ok.page.locator('.cus-layer [data-f="amount"]').first().inputValue()).resolves.toBe('12');
+      await expect(ok.page.locator('.cus-layer [data-f="p:radius"]').first().inputValue()).resolves.toBe('12');
+      await expect(ok.page.locator('.cus-sparkle').count()).resolves.toBe(1);   // @sparkle で対象も復元される
       expect(ok.errors).toEqual([]);
 
       const broken = await openViewer('#custom=%E0%A4%A');
@@ -379,6 +380,67 @@ describe('ビューア', { timeout: 30000 }, () => {
       // 開いたまま # だけが変わったときも追従する
       await ok.page.evaluate(() => { location.hash = '#custom=fade,200,0,linear,'; });
       await expect.poll(() => layerNames(ok.page)).toEqual(['フェード']);
+    });
+
+    test('対象を切り替えると、動かす要素が替わり、URL にも残る', async () => {
+      const { page, errors } = await openViewer('#custom');
+      await page.waitForSelector('.cus-layer');
+      for (const [id, selector] of [['sparkle', '.cus-sparkle'], ['button', '.demo-btn'], ['card', '.cus-card']]) {
+        await page.locator(`[data-subject="${id}"]`).click();
+        await expect(page.locator(`[data-stage] ${selector}[data-t="subject"]`).count(), id).resolves.toBe(1);
+        await expect(page.evaluate(() => location.hash), id).resolves.toContain(`@${id}`);
+      }
+      expect(errors).toEqual([]);
+    });
+
+    test('揺れの細かい設定（方向・回数・減衰・質感）が、コードと動きに反映される', async () => {
+      const { page, errors } = await openViewer('#custom');
+      await page.waitForSelector('.cus-layer');
+      await page.locator('[data-preset="wobble"]').click();
+      await expect(layerNames(page)).resolves.toEqual(['揺れ']);
+      await expect(page.locator('.cus-layer [data-f="easing"]').count()).resolves.toBe(0);   // 揺れはイージングを選ばせない
+      await page.locator('[data-f="p:axis"]').selectOption({ label: '縦' });
+      await page.locator('[data-f="p:count"]').fill('4');
+      await page.locator('[data-f="p:feel"]').selectOption({ label: 'カクカク' });
+      const code = await page.locator('[data-code]').textContent();
+      expect(code).toContain('translateY(');
+      expect(code).not.toContain('translateX(');
+      expect(code?.match(/easing: 'linear'/g)?.length).toBeGreaterThanOrEqual(5);   // キーフレームごとの質感
+      await expect(page.evaluate(() => location.hash)).resolves.toMatch(/axis:1\|amplitude:\d+\|count:4\|decay:40\|feel:1/);
+      await page.locator('[data-play]').click();
+      const frames = await page.evaluate(() => /** @type {KeyframeEffect} */ (document.querySelector('[data-t="subject"]')?.getAnimations()[0].effect).getKeyframes().length);
+      expect(frames).toBe(4 + 2);
+      expect(errors).toEqual([]);
+    });
+
+    test('opacity を動かす部品（フェードとブリンク）は同時に追加できず、理由が出る', async () => {
+      const { page, errors } = await openViewer('#custom=@card;blink,600,0,linear,count:3');
+      await page.waitForSelector('.cus-layer');
+      await expect(page.locator('[data-add-effect="fade"]').count()).resolves.toBe(0);
+      await expect(page.locator('[data-conflict]').textContent()).resolves.toContain('フェード');
+      await page.locator('.cus-layer [data-act="remove"]').click();
+      await expect(page.locator('[data-add-effect="fade"]').count()).resolves.toBe(1);
+      await expect(page.locator('[data-conflict]').isHidden()).resolves.toBe(true);
+      expect(errors).toEqual([]);
+    });
+
+    test('ぼかしと色変化は filter を重ねて両方かかる（composite: add）。バウンスと拡大縮小の transform も打ち消し合わない', async () => {
+      const { page, errors } = await openViewer('#custom=@sparkle;blur,1000,0,linear,radius:20;hue,1000,0,linear,angle:180;bounce,1000,0,linear,height:40|count:1|decay:0|squash:0;scale,1000,0,linear,from:2');
+      await page.waitForSelector('.cus-layer');
+      await page.locator('[data-play]').click();
+      await page.waitForTimeout(250);
+      const style = await page.evaluate(() => {
+        const el = /** @type {HTMLElement} */ (document.querySelector('[data-t="subject"]'));
+        for (const a of el.getAnimations()) a.pause();   // 途中の見た目で止めて、合成された値を読む
+        const cs = getComputedStyle(el);
+        const m = new DOMMatrix(cs.transform);
+        return { filter: cs.filter, ty: m.m42, sx: m.a };
+      });
+      expect(style.filter).toMatch(/blur/);
+      expect(style.filter).toMatch(/hue-rotate/);
+      expect(style.ty).toBeLessThan(-1);   // バウンスで上がっている
+      expect(style.sx).toBeGreaterThan(1.05);   // 拡大縮小も効いている（2倍から戻る途中）
+      expect(errors).toEqual([]);
     });
 
     test('スマホ幅: 切り替えるとモーションの UI が隠れ、編集画面が見える', async () => {

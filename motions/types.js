@@ -102,15 +102,29 @@
  */
 
 /**
+ * カスタマイズの効果の設定項目。数値（min〜max）か、選択肢（options の番号を値にする）のどちらか。
+ * @typedef {object} CustomParam
+ * @property {string} key
+ * @property {string} label
+ * @property {number} value  既定値（選択肢なら番号）
+ * @property {string} [unit]
+ * @property {number} [min]
+ * @property {number} [max]
+ * @property {number} [step]
+ * @property {string[]} [options]  あれば選択肢。値は番号
+ */
+
+/**
  * カスタマイズの効果（部品）。重ねて1つの動きにする。
  * @typedef {object} CustomEffect
  * @property {string} id
  * @property {string} name
  * @property {string} feel  印象ワード
- * @property {'opacity' | 'transform' | 'filter'} property  動かす CSS プロパティ。transform だけ composite: 'add' で重ねる
+ * @property {'opacity' | 'transform' | 'filter'} property  動かす CSS プロパティ。opacity 以外は composite: 'add' で重ねる
+ * @property {boolean} [ownEasing]  キーフレームごとにイージングを持つ（弾み・揺れ・点滅）。レイヤー全体は linear にする
  * @property {{ duration: number, delay: number, easing: string }} defaults
- * @property {{ label: string, unit: string, min: number, max: number, step: number, value: number }} [param]  量の調整（なければ固定）
- * @property {(amount?: number) => Keyframe[]} frames  開始→置き場所（元の見た目）の2つ
+ * @property {any[]} params  設定項目（CustomParam）。値の型は frames の引数になる
+ * @property {(params: Record<string, number>) => Keyframe[]} frames  開始→元の見た目（または一連の動き→元の見た目）
  */
 
 /**
@@ -120,7 +134,7 @@
  * @property {number} duration  ms
  * @property {number} delay  ms
  * @property {string} easing
- * @property {number} [amount]  param を持つ効果の量
+ * @property {Record<string, number>} params  効果の設定項目の値（キーは CustomParam.key）
  */
 
 export {};

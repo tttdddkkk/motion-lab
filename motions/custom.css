@@ -10,6 +10,8 @@
 
 .cus-row { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; }
 .cus-row .label, .cus-note, .cus-empty, .cus-feel { color: var(--sub); }
+.cus-note { margin: 0; font-size: 12px; }
+.cus-fields .cus-note { align-self: end; }
 .cus-chips { display: contents; }
 .cus-empty { list-style: none; padding: 14px; border: 1px dashed var(--line); border-radius: var(--radius); }
 
@@ -31,7 +33,11 @@
 .cus-copies { display: flex; gap: 6px; flex-wrap: wrap; margin-left: auto; }
 .cus-copies .copy { margin-left: 0; min-width: 0; }
 
-/* ステージに置くカード（動かす対象） */
+/* ステージに置く、動かす対象 */
+.cus-sparkle {
+  width: 84px; height: 84px; background: linear-gradient(135deg, #ffe27a, #ff8fb1 60%, #8f7bff);
+  clip-path: polygon(50% 0, 62% 38%, 100% 50%, 62% 62%, 50% 100%, 38% 62%, 0 50%, 38% 38%);
+}
 .cus-card { width: 150px; padding: 10px; border-radius: 14px; background: var(--demo-bubble); display: grid; gap: 8px; box-shadow: 0 8px 20px rgba(0,0,0,.35); }
 .cus-card h4 { margin: 0; font-size: 13px; }
 .cus-card-img { height: 70px; border-radius: 10px; background: var(--demo-media); }
@@ -47,6 +53,7 @@
     border-bottom: 1px solid var(--line); box-shadow: 0 6px 16px rgba(0,0,0,.35);
   }
   .cus-phone { width: 120px; height: 200px; }
+  .cus-phone .cus-sparkle { width: 56px; height: 56px; }
   .cus-phone .cus-card { width: 96px; padding: 7px; gap: 5px; }
   .cus-phone .cus-card-img { height: 40px; }
   .cus-phone .cus-card h4 { font-size: 11px; }

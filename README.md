@@ -25,7 +25,7 @@
 - `motions/tokens.js` … 複数のファイルで同じ値を使うタイミングの定数（トーストの時間など）。通知モーションと差分比較で、値が別々に書かれてずれないようにする
 - `motions/dom.js` … DOM から要素を取る共通の道具（`q` / `qa`）。見つからなければ、探したセレクタつきの例外にする
 - `motions/compare.js` … 差分比較のデータ（バリアント定義とトラック生成）。`MOTIONS` とは別で、ストーリーは不要。`motions/compare-ui.js` が描画する（ADR 0012）
-- `motions/custom.js` … カスタマイズのデータとロジック（効果 `EFFECTS`、出発点 `PRESETS`、トラック生成、URL の書き出し・読み込み）。`motions/custom-ui.js` が描画する。効果を重ねて自分の動きを作り、WAAPI / JSON / 共有 URL（`#custom=…`）で持ち出す（ADR 0023）
+- `motions/custom.js` … カスタマイズのデータとロジック（対象 `SUBJECTS`、動きの部品 `EFFECTS` とその設定項目、出発点 `PRESETS`、トラック生成、URL の書き出し・読み込み）。`motions/custom-ui.js` が描画する。対象に部品を重ね、部品ごとに細かく設定して自分の動きを作り、WAAPI / JSON / 共有 URL（`#custom=…`）で持ち出す（ADR 0023）
 - `motions/player.js` … 差分比較とカスタマイズが共有する、トラックの再生と「動きを減らす」設定の扱い
 - `stories/motions.stories.js` … 1モーション1行のストーリーと振る舞いテスト（`play`）
 - `motions/types.js` … JSDoc の型定義（`Motion` / `Ctx` / 差分比較のバリアントなど）。実行時には読まれない（ADR 0018）
