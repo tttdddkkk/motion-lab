@@ -1,7 +1,7 @@
 /* カスタマイズビューの描画。データとロジックは custom.js、再生は player.js */
 import { EASING_PRESETS } from './compare.js';
 import {
-  PRESETS, SUBJECTS, EFFECTS, DEFAULT_SUBJECT, DURATION_RANGE, DELAY_RANGE, effectOf, makeLayer, addableEffects, moveLayer,
+  PRESETS, presetsFor, SUBJECTS, EFFECTS, DEFAULT_SUBJECT, DURATION_RANGE, DELAY_RANGE, effectOf, makeLayer, addableEffects, moveLayer,
   totalMs, timeline, buildCustomTracks, encodeLayers, decodeLayers, toCustomWaapi, toCustomJson
 } from './custom.js';
 import { q } from './dom.js';
@@ -42,7 +42,7 @@ const paramHtml = (spec, value) => (spec.options
  */
 export function mountCustom({ root }) {
   /** @type {{ subject: string, layers: import('./types.js').CustomLayer[], tab: 'waapi' | 'json' }} */
-  const state = { subject: PRESETS[0].subject, layers: cloneLayers(PRESETS[0].layers), tab: 'waapi' };
+  const state = { subject: DEFAULT_SUBJECT, layers: cloneLayers(PRESETS[0].layers), tab: 'waapi' };
 
   root.innerHTML = `
     <div class="cus-top">
@@ -144,7 +144,7 @@ export function mountCustom({ root }) {
     conflict.textContent = blocked.length ? `${blocked.map(e => e.name).join('・')}は、使用中の部品と同じ opacity を動かすため、同時には使えません。` : '';
     q(root, '[data-subjects]').innerHTML = SUBJECTS.map(x =>
       `<button type="button" class="chip" data-subject="${x.id}" aria-pressed="${state.subject === x.id}">${esc(x.name)}</button>`).join('');
-    q(root, '[data-presets]').innerHTML = PRESETS.map(p =>
+    q(root, '[data-presets]').innerHTML = presetsFor(state.subject).map(p =>
       `<button type="button" class="chip" data-preset="${p.id}" title="${esc(p.use)}">${esc(p.name)}</button>`).join('');
     q(root, '[data-tabs]').innerHTML = TABS.map(([key, label]) =>
       `<button type="button" role="tab" data-tab="${key}" aria-pressed="${state.tab === key}">${label}</button>`).join('');
@@ -202,7 +202,7 @@ export function mountCustom({ root }) {
       if (next) { state.layers = [...state.layers, next]; restructure(); }
     } else if (preset) {
       const p = PRESETS.find(x => x.id === preset);
-      if (p) { state.subject = p.subject; state.layers = cloneLayers(p.layers); restructure(); }
+      if (p) { state.layers = cloneLayers(p.layers); restructure(); }   // 対象は変えない（選べるのは、その対象で使えるものだけ）
     } else if (subject) { state.subject = subject; restructure(); }
     else if (tab === 'waapi' || tab === 'json') { state.tab = tab; render(); }
     else if (b.dataset.copy !== undefined || b.dataset.share !== undefined) {
@@ -217,7 +217,7 @@ export function mountCustom({ root }) {
   /* ---- URL ---- */
   function syncFromHash() {
     const decoded = decodeLayers(location.hash);
-    state.subject = decoded?.subject ?? PRESETS[0].subject;
+    state.subject = decoded?.subject ?? DEFAULT_SUBJECT;
     state.layers = decoded?.layers ?? cloneLayers(PRESETS[0].layers);
     render();
     autoPlay();

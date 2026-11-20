@@ -393,6 +393,26 @@ describe('ビューア', { timeout: 30000 }, () => {
       expect(errors).toEqual([]);
     });
 
+    test('出発点は、選んでいる対象で使えるものだけが出る。出発点を選んでも対象は変わらない', async () => {
+      const { page, errors } = await openViewer('#custom');
+      await page.waitForSelector('.cus-layer');
+      const presets = () => page.locator('[data-preset]').evaluateAll(els => els.map(el => /** @type {HTMLElement} */ (el).dataset.preset));
+      await expect(presets()).resolves.toContain('rise');
+      await expect(presets()).resolves.not.toContain('twinkle');
+
+      await page.locator('[data-subject="sparkle"]').click();
+      await expect(presets()).resolves.not.toContain('rise');   // キラキラに合わないものは出さない
+      await expect(presets()).resolves.toContain('twinkle');
+      await page.locator('[data-preset="twinkle"]').click();
+      await expect(page.locator('.cus-sparkle').count()).resolves.toBe(1);   // 対象は切り替わらない
+      await expect(page.evaluate(() => location.hash)).resolves.toContain('@sparkle');
+
+      await page.locator('[data-subject="card"]').click();
+      await expect(presets()).resolves.not.toContain('twinkle');
+      await expect(presets()).resolves.toContain('rise');
+      expect(errors).toEqual([]);
+    });
+
     test('揺れの細かい設定（方向・回数・減衰・質感）が、コードと動きに反映される', async () => {
       const { page, errors } = await openViewer('#custom');
       await page.waitForSelector('.cus-layer');
