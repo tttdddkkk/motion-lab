@@ -101,4 +101,26 @@
  * @property {number[]} [delays]
  */
 
+/**
+ * カスタマイズの効果（部品）。重ねて1つの動きにする。
+ * @typedef {object} CustomEffect
+ * @property {string} id
+ * @property {string} name
+ * @property {string} feel  印象ワード
+ * @property {'opacity' | 'transform' | 'filter'} property  動かす CSS プロパティ。transform だけ composite: 'add' で重ねる
+ * @property {{ duration: number, delay: number, easing: string }} defaults
+ * @property {{ label: string, unit: string, min: number, max: number, step: number, value: number }} [param]  量の調整（なければ固定）
+ * @property {(amount?: number) => Keyframe[]} frames  開始→置き場所（元の見た目）の2つ
+ */
+
+/**
+ * カスタマイズで重ねた1つの効果。
+ * @typedef {object} CustomLayer
+ * @property {string} effect  CustomEffect の id
+ * @property {number} duration  ms
+ * @property {number} delay  ms
+ * @property {string} easing
+ * @property {number} [amount]  param を持つ効果の量
+ */
+
 export {};

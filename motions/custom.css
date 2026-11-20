@@ -1,0 +1,54 @@
+/* カスタマイズビュー（index.html の「カスタマイズ」）。共通の部品は compare.css / viewer.css のものを使う */
+#custom { display: grid; gap: 18px; }
+.cus-top { display: grid; gap: 12px; }
+.cus-layout { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 20px 28px; align-items: start; }
+.cus-preview { display: grid; gap: 10px; justify-items: center; position: sticky; top: 12px; }
+.cus-phone { width: 210px; height: 380px; margin: 0; }
+.cus-play { display: flex; gap: 10px; align-items: center; }
+.cus-total { color: var(--sub); font-variant-numeric: tabular-nums; }
+.cus-editor { display: grid; gap: 14px; min-width: 0; }
+
+.cus-row { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; }
+.cus-row .label, .cus-note, .cus-empty, .cus-feel { color: var(--sub); }
+.cus-chips { display: contents; }
+.cus-empty { list-style: none; padding: 14px; border: 1px dashed var(--line); border-radius: var(--radius); }
+
+.cus-layers { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.cus-layer { border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); padding: 10px 12px; display: grid; gap: 8px; }
+.cus-layer-head { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; }
+.cus-layer-btns { margin-left: auto; display: flex; gap: 6px; }
+.cus-layer-btns button:disabled { opacity: .35; cursor: default; }
+.cus-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 8px 14px; }
+.cus-fields label { display: grid; gap: 2px; color: var(--sub); font-size: 12px; }
+.cus-fields output { color: var(--text); font-variant-numeric: tabular-nums; }
+.cus-fields input[type="range"], .cus-fields select { width: 100%; accent-color: var(--accent); }
+.cus-fields select { background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 4px; }
+
+.cus-timeline { display: grid; gap: 4px; font-size: 12px; color: var(--sub); }
+.cus-bar-row { display: grid; grid-template-columns: 6.5em minmax(0, 1fr); gap: 8px; align-items: center; }
+.cus-track { position: relative; height: 8px; border-radius: 4px; background: var(--demo-row); }
+.cus-track i { position: absolute; top: 0; bottom: 0; border-radius: 4px; background: var(--accent-gradient); }
+.cus-copies { display: flex; gap: 6px; flex-wrap: wrap; margin-left: auto; }
+.cus-copies .copy { margin-left: 0; min-width: 0; }
+
+/* ステージに置くカード（動かす対象） */
+.cus-card { width: 150px; padding: 10px; border-radius: 14px; background: var(--demo-bubble); display: grid; gap: 8px; box-shadow: 0 8px 20px rgba(0,0,0,.35); }
+.cus-card h4 { margin: 0; font-size: 13px; }
+.cus-card-img { height: 70px; border-radius: 10px; background: var(--demo-media); }
+.cus-card-row { height: 10px; border-radius: 5px; background: var(--demo-row); }
+.cus-card-row.short { width: 60%; }
+
+/* スマホ幅: プレビューを上に固定して、編集しながら見られるようにする */
+@media (max-width: 820px) {
+  .cus-layout { grid-template-columns: minmax(0, 1fr); gap: 14px; }
+  .cus-preview {
+    grid-template-columns: auto 1fr; justify-items: start; align-items: center; gap: 12px;
+    top: 0; z-index: 10; margin: 0 -16px; padding: 8px 16px; background: var(--panel);
+    border-bottom: 1px solid var(--line); box-shadow: 0 6px 16px rgba(0,0,0,.35);
+  }
+  .cus-phone { width: 120px; height: 200px; }
+  .cus-phone .cus-card { width: 96px; padding: 7px; gap: 5px; }
+  .cus-phone .cus-card-img { height: 40px; }
+  .cus-phone .cus-card h4 { font-size: 11px; }
+  .cus-play { flex-direction: column; align-items: flex-start; }
+}
