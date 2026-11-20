@@ -222,24 +222,21 @@ export function moveLayer(layers, index, delta) {
 
 /** 出発点になる組み合わせ。ID・印象ワード・使いどころを持つ（CLAUDE.md のバリアント方針） */
 export const PRESETS = [
-  { id: 'rise', name: 'ふわっと上昇', subjects: ['card', 'button'], tags: ['やわらかい', '上品'], use: 'カード・パネルの表示',
+  { id: 'rise', name: 'ふわっと上昇', tags: ['やわらかい', '上品'], use: 'カード・パネルの表示',
     layers: [{ effect: 'fade' }, { effect: 'slide-y', duration: 600 }] },
-  { id: 'pop', name: 'ポップ', subjects: ['card', 'button', 'sparkle'], tags: ['弾む', '軽快'], use: '完了・成功の強調',
+  { id: 'pop', name: 'ポップ', tags: ['弾む', '軽快'], use: '完了・成功の強調',
     layers: [{ effect: 'fade', duration: 200 }, { effect: 'scale', params: { from: 0.8 } }] },
-  { id: 'focus', name: 'ピント合わせ', subjects: ['card'], tags: ['なめらか', '印象的'], use: 'ヒーロー・画像の登場',
+  { id: 'focus', name: 'ピント合わせ', tags: ['なめらか', '印象的'], use: 'ヒーロー・画像の登場',
     layers: [{ effect: 'fade' }, { effect: 'blur', duration: 600, params: { radius: 10 } }, { effect: 'scale', duration: 600, easing: 'ease-out', params: { from: 0.96 } }] },
-  { id: 'twinkle', name: 'きらっ', subjects: ['sparkle'], tags: ['きらきら', '軽快'], use: '新着・お気に入りの強調',
+  { id: 'twinkle', name: 'きらっ', tags: ['きらきら', '軽快'], use: '新着・お気に入りの強調',
     layers: [{ effect: 'scale', duration: 500, params: { from: 0.3 } }, { effect: 'rotate', duration: 700, params: { angle: 180 } }, { effect: 'blink', delay: 500, duration: 700, params: { count: 3, min: 20 } }] },
-  { id: 'rainbow', name: '虹色キラキラ', subjects: ['sparkle'], tags: ['カラフル', '祝福'], use: 'レベルアップ・達成',
+  { id: 'rainbow', name: '虹色キラキラ', tags: ['カラフル', '祝福'], use: 'レベルアップ・達成',
     layers: [{ effect: 'rotate', duration: 1200, params: { angle: 360 } }, { effect: 'hue', duration: 1200, params: { angle: 360 } }, { effect: 'bounce', duration: 800, params: { height: 20, count: 2 } }] },
-  { id: 'boing', name: 'ぽよん', subjects: ['button', 'card'], tags: ['弾む', 'ゆるい'], use: '押せることの示唆',
+  { id: 'boing', name: 'ぽよん', tags: ['弾む', 'ゆるい'], use: '押せることの示唆',
     layers: [{ effect: 'bounce', duration: 900, params: { height: 30, count: 3, decay: 45, squash: 20 } }] },
-  { id: 'wobble', name: 'ぶるぶる', subjects: ['card', 'button'], tags: ['注意', '否定'], use: '入力エラー・拒否',
+  { id: 'wobble', name: 'ぶるぶる', tags: ['注意', '否定'], use: '入力エラー・拒否',
     layers: [{ effect: 'shake', duration: 500, params: { axis: 0, amplitude: 10, count: 6, decay: 40 } }] }
 ].map(p => ({ ...p, layers: sanitizeLayers(p.layers) }));
-
-/** 選んでいる対象で使える出発点だけを返す */
-export const presetsFor = subject => PRESETS.filter(p => p.subjects.includes(subject));
 
 /* 全体の長さ（遅れを含む。ms） */
 export const totalMs = layers => layers.reduce((m, l) => Math.max(m, l.delay + l.duration), 0);

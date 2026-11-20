@@ -1,7 +1,7 @@
 /* カスタマイズビューの描画。データとロジックは custom.js、再生は player.js */
 import { EASING_PRESETS } from './compare.js';
 import {
-  PRESETS, presetsFor, SUBJECTS, EFFECTS, DEFAULT_SUBJECT, DURATION_RANGE, DELAY_RANGE, effectOf, makeLayer, addableEffects, moveLayer,
+  PRESETS, SUBJECTS, EFFECTS, DEFAULT_SUBJECT, DURATION_RANGE, DELAY_RANGE, effectOf, makeLayer, addableEffects, moveLayer,
   totalMs, timeline, buildCustomTracks, encodeLayers, decodeLayers, toCustomWaapi, toCustomJson
 } from './custom.js';
 import { q } from './dom.js';
@@ -144,7 +144,7 @@ export function mountCustom({ root }) {
     conflict.textContent = blocked.length ? `${blocked.map(e => e.name).join('・')}は、使用中の部品と同じ opacity を動かすため、同時には使えません。` : '';
     q(root, '[data-subjects]').innerHTML = SUBJECTS.map(x =>
       `<button type="button" class="chip" data-subject="${x.id}" aria-pressed="${state.subject === x.id}">${esc(x.name)}</button>`).join('');
-    q(root, '[data-presets]').innerHTML = presetsFor(state.subject).map(p =>
+    q(root, '[data-presets]').innerHTML = PRESETS.map(p =>
       `<button type="button" class="chip" data-preset="${p.id}" title="${esc(p.use)}">${esc(p.name)}</button>`).join('');
     q(root, '[data-tabs]').innerHTML = TABS.map(([key, label]) =>
       `<button type="button" role="tab" data-tab="${key}" aria-pressed="${state.tab === key}">${label}</button>`).join('');
@@ -202,7 +202,7 @@ export function mountCustom({ root }) {
       if (next) { state.layers = [...state.layers, next]; restructure(); }
     } else if (preset) {
       const p = PRESETS.find(x => x.id === preset);
-      if (p) { state.layers = cloneLayers(p.layers); restructure(); }   // 対象は変えない（選べるのは、その対象で使えるものだけ）
+      if (p) { state.layers = cloneLayers(p.layers); restructure(); }   // 対象は変えない
     } else if (subject) { state.subject = subject; restructure(); }
     else if (tab === 'waapi' || tab === 'json') { state.tab = tab; render(); }
     else if (b.dataset.copy !== undefined || b.dataset.share !== undefined) {

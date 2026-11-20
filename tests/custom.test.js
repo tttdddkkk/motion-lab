@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest';
 import {
   EFFECTS, PRESETS, SUBJECTS, effectOf, makeLayer, sanitizeLayers, addableEffects, moveLayer, totalMs, timeline,
-  buildCustomTracks, encodeLayers, decodeLayers, toCustomWaapi, toCustomJson, presetsFor
+  buildCustomTracks, encodeLayers, decodeLayers, toCustomWaapi, toCustomJson
 } from '../motions/custom.js';
 
 const layer = raw => {
@@ -90,12 +90,9 @@ test('色変化・回転・ぼかしは、設定した量から元に戻る', ()
   expect(framesOf('blur', { radius: 12 })[0].filter).toBe('blur(12px)');
 });
 
-test('出発点は、ID・使える対象・印象ワード・使いどころを持ち、同じ効果を2回使わず、opacity を競合させない', () => {
+test('出発点は、ID・印象ワード・使いどころを持ち、同じ効果を2回使わず、opacity を競合させない', () => {
   expect(new Set(PRESETS.map(p => p.id)).size).toBe(PRESETS.length);
-  const subjects = SUBJECTS.map(s => s.id);
   for (const p of PRESETS) {
-    expect(p.subjects.length, p.id).toBeGreaterThan(0);
-    for (const sub of p.subjects) expect(subjects, p.id).toContain(sub);
     expect(p.tags.length, p.id).toBeGreaterThan(0);
     expect(p.use.length, p.id).toBeGreaterThan(0);
     expect(p.layers.length, p.id).toBeGreaterThan(0);
@@ -104,15 +101,12 @@ test('出発点は、ID・使える対象・印象ワード・使いどころを
   }
 });
 
-test('出発点は対象ごとに絞られ、どの対象にも1つ以上ある。対象に合わないものは返さない', () => {
-  for (const sub of SUBJECTS) {
-    const list = presetsFor(sub.id);
-    expect(list.length, sub.id).toBeGreaterThan(0);
-    for (const p of list) expect(p.subjects, `${sub.id} ${p.id}`).toContain(sub.id);
+test('出発点は、どの対象に掛けても動く（対象に依存しない）', () => {
+  for (const p of PRESETS) for (const sub of SUBJECTS) {
+    const tracks = buildCustomTracks(p.layers);
+    expect(tracks.length, `${p.id} ${sub.id}`).toBe(p.layers.length);
+    for (const t of tracks) expect(t.target).toBe('subject');   // 対象によらず、動かす要素は data-t="subject"
   }
-  expect(presetsFor('sparkle').map(p => p.id)).not.toContain('rise');
-  expect(presetsFor('card').map(p => p.id)).not.toContain('twinkle');
-  expect(presetsFor('nope')).toEqual([]);
 });
 
 test('makeLayer は範囲外・不正な値を収め、未知の効果は作らない', () => {
@@ -166,7 +160,7 @@ test('トラックは layers の値を反映する。opacity 以外は composite
 });
 
 test('URL の書き出しと読み込みで、同じ対象と layers に戻る', () => {
-  for (const p of PRESETS) expect(decodeLayers(encodeLayers(p.layers, p.subjects[0])), p.id).toEqual({ subject: p.subjects[0], layers: p.layers });
+  for (const p of PRESETS) expect(decodeLayers(encodeLayers(p.layers, 'sparkle')), p.id).toEqual({ subject: 'sparkle', layers: p.layers });
   expect(encodeLayers(PRESETS[0].layers)).not.toMatch(/[()]/);   // cubic-bezier の括弧を URL に出さない
   expect(decodeLayers(encodeLayers([], 'sparkle'))).toEqual({ subject: 'sparkle', layers: [] });   // 全部消した状態
   expect(encodeLayers(PRESETS[4].layers, 'sparkle')).toContain('@sparkle;');
@@ -194,8 +188,8 @@ test('コピー用の出力は、トラックと同じ値を含み、JSON は読
   expect(code).toContain("composite: 'add'");
   expect(code).toContain('duration: 500');
   expect(code).toContain('transform: \'translateX(10px)\'');   // キーフレームが多いときも、値が欠けない
-  const json = JSON.parse(toCustomJson(p.layers, tracks, p.subjects[0]));
-  expect(json).toMatchObject({ subject: p.subjects[0], layers: p.layers });
+  const json = JSON.parse(toCustomJson(p.layers, tracks, 'button'));
+  expect(json).toMatchObject({ subject: 'button', layers: p.layers });
   expect(json.tracks).toHaveLength(tracks.length);
   expect(toCustomWaapi([])).toContain('選ばれていません');
 });
