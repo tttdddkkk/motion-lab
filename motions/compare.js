@@ -1039,4 +1039,3 @@ export function toWaapiJson(variant, tracks) {
   return JSON.stringify({ id: variant.id, name: variant.name, tracks }, null, 2);
 }
 
-export const ALL_TAGS = [...new Set(COMPARE_GROUPS.flatMap(g => g.variants.flatMap(v => v.tags)))];

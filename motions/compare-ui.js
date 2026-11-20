@@ -1,6 +1,6 @@
 /* 差分比較ビューの描画。データは compare.js、ここはそれを描画して再生するだけ */
 import {
-  COMPARE_GROUPS, SECTIONS, PAIR_SECTION, ALL_TAGS, EASING_PRESETS,
+  COMPARE_GROUPS, SECTIONS, PAIR_SECTION, EASING_PRESETS,
   buildTracks, formatParams, toWaapiJson
 } from './compare.js';
 import { esc, REDUCED_NOTICE_HTML, bindReducedGate, playTracks } from './player.js';
@@ -39,10 +39,10 @@ const clipSupported = () => {
  */
 
 export function mountCompare({ root, nav }) {
-  /** @type {{ tag: string | null, override: Map<string, unknown>, cards: Card[] }} */
-  const state = { tag: null, override: new Map(), cards: [] };
-  const tagButtons = ['すべて', ...ALL_TAGS].map(t =>
-    `<button type="button" class="chip" data-tag="${esc(t)}" aria-pressed="${t === 'すべて'}">${esc(t)}</button>`).join('');
+  /** @type {{ section: string | null, override: Map<string, unknown>, cards: Card[] }} */
+  const state = { section: null, override: new Map(), cards: [] };
+  const catButtons = [{ id: '', title: 'すべて' }, ...SECTIONS].map(s =>
+    `<button type="button" class="chip" data-cat="${esc(s.id)}" aria-pressed="${s.id === ''}">${esc(s.title)}</button>`).join('');
 
   const groupHtml = g => `
     <section class="cmp-group" id="cmp-${g.id}" data-group="${g.id}">
@@ -96,7 +96,7 @@ export function mountCompare({ root, nav }) {
         <p class="desc">口頭で伝わりにくい違いを、実物で並べて確認する。基準から1つの軸だけを変えている。</p>
       </header>
       ${REDUCED_NOTICE_HTML}
-      <div class="cmp-tags-bar"><span class="label">印象ワード:</span>${tagButtons}</div>
+      <div class="cmp-tags-bar"><span class="label">カテゴリ:</span>${catButtons}</div>
     </div>
     ${SECTIONS.map(s => `
       <div class="cmp-section" data-section="${s.id}">
@@ -109,9 +109,9 @@ export function mountCompare({ root, nav }) {
       </div>`).join('')}`;
 
   nav.innerHTML = SECTIONS.map(s =>
-    `<li><button type="button" data-jump-section="${s.id}"><strong>${esc(s.title)}</strong></button></li>`
+    `<li data-nav-section="${s.id}"><button type="button" data-jump-section="${s.id}"><strong>${esc(s.title)}</strong></button></li>`
     + COMPARE_GROUPS.filter(g => g.section === s.id).map(g =>
-      `<li><button type="button" data-jump="${g.id}">${esc(g.title)}</button></li>`).join('')).join('');
+      `<li data-nav-section="${s.id}"><button type="button" data-jump="${g.id}">${esc(g.title)}</button></li>`).join('')).join('');
 
   /* ---- カードの状態 ---- */
   for (const group of COMPARE_GROUPS) {
@@ -167,14 +167,15 @@ export function mountCompare({ root, nav }) {
 
   /* ---- 絞り込み・ジャンプ・選択 ---- */
   function applyFilter() {
-    for (const c of state.cards) c.el.hidden = !!state.tag && !c.variant.tags.includes(state.tag);
-    root.querySelectorAll('.cmp-group').forEach(g => { g.hidden = !g.querySelector('.cmp-card:not([hidden])'); });
-    root.querySelectorAll('.cmp-section').forEach(s => { s.hidden = !s.querySelector('.cmp-group:not([hidden])'); });
+    const off = id => !!state.section && id !== state.section;
+    root.querySelectorAll('.cmp-section').forEach(s => { s.hidden = off(s.dataset.section); });
+    /* 非表示のセクションへはジャンプできない（scrollIntoView が効かない）ので、ナビからも外す */
+    nav.querySelectorAll('[data-nav-section]').forEach(li => { li.hidden = off(li.dataset.navSection); });
   }
-  root.querySelectorAll('[data-tag]').forEach(b => {
+  root.querySelectorAll('[data-cat]').forEach(b => {
     b.onclick = () => {
-      state.tag = b.dataset.tag === 'すべて' ? null : b.dataset.tag;
-      root.querySelectorAll('[data-tag]').forEach(x => x.setAttribute('aria-pressed', (x.dataset.tag === 'すべて' ? !state.tag : x.dataset.tag === state.tag)));
+      state.section = b.dataset.cat || null;
+      root.querySelectorAll('[data-cat]').forEach(x => x.setAttribute('aria-pressed', (x.dataset.cat || null) === state.section));
       applyFilter();
     };
   });
