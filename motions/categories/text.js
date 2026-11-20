@@ -276,7 +276,9 @@ const scroll = list.animate(k, { duration: TOTAL, fill: 'both' });
       const STEPS = 12;    // 溶け合いのキーフレームの数（ぼかしは直線でなく曲線なので、細かく刻む）
       const MAX_BLUR = 40;
       const BLUR = 2;      // ぼかしの強さの係数。文字が大きいほど大きくできる
-      const WORDS = ['溶ける', 'ことば', 'かたち', '変わる'];
+      const SIZE = 52;     // 文字の大きさの上限（px）
+      const SIDE = 16;     // 枠の左右に残す余白（px）
+      const WORDS = ['溶ける', 'ことば', 'モーフィング', 'かたち', '変わる'];
 
       // フィルターの matrix の最後の行（0 0 0 255 -140）が「しきい値」: 薄く透けた部分は消え、濃い部分はくっきり残る。
       // これで、ぼかした2つの文字が溶け合って見える
@@ -295,6 +297,15 @@ const scroll = list.animate(k, { duration: TOTAL, fill: 'both' });
       a.textContent = WORDS[0];
       let token = 0;
 
+      // 一番長い言葉が枠に収まるように、文字の大きさを決める（全部の言葉で同じ大きさにして、切り替え中に大きさが変わらないようにする）。
+      // 枠の幅は offsetWidth で測る。縮小表示（transform）の影響を受けない
+      const fit = () => {
+        text.style.fontSize = `${SIZE}px`;
+        const widest = Math.max(...WORDS.map(w => { a.textContent = w; return a.offsetWidth; }));
+        const room = stage.offsetWidth - SIDE * 2;
+        if (widest > room) text.style.fontSize = `${Math.floor(SIZE * room / widest)}px`;
+      };
+
       // 進み具合 f（0〜1）でのぼかしと不透明度。端でぼかしが無限大にならないよう上限を決める
       const blurIn = f => Math.min(BLUR / f - BLUR, MAX_BLUR);
       const fadeIn = f => Math.pow(f, .4);
@@ -302,6 +313,7 @@ const scroll = list.animate(k, { duration: TOTAL, fill: 'both' });
       const run = async () => {
         const my = ++token;
         const reduced = ctx.reduced();
+        fit();
         text.classList.toggle('is-static', reduced);   // 動きを減らす: しきい値フィルターを外す
         const total = HOLD + MORPH;
         const at = f => (HOLD + f * MORPH) / total;    // 溶け合いの進み具合 → keyframe の offset
@@ -380,7 +392,13 @@ for (let k = 1; k <= STEPS; k++) {
 const opt = { duration: HOLD + MORPH, easing: 'linear', fill: 'both' };
 out.animate(outFrames, opt);
 incoming.animate(inFrames, opt);
-// 終わったら文字を入れ替え（out に今の言葉、incoming に次の言葉）、次の言葉でもう一度`,
+// 終わったら文字を入れ替え（out に今の言葉、incoming に次の言葉）、次の言葉でもう一度
+
+// 長い言葉でも枠に収める: 一番長い言葉の幅を測り、はみ出すなら文字を縮める（全部の言葉で同じ大きさ）
+text.style.fontSize = '52px';
+const widest = Math.max(...words.map(w => { out.textContent = w; return out.offsetWidth; }));
+const room = stage.offsetWidth - 32;
+if (widest > room) text.style.fontSize = Math.floor(52 * room / widest) + 'px';`,
       reduced: `@media (prefers-reduced-motion: reduce) {
   /* ぼかさず、しきい値フィルターも外して、不透明度だけで入れ替える */
   .morph { filter: none; }

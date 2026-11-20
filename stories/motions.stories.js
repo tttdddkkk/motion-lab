@@ -315,6 +315,19 @@ const EXTRA_STEPS = {
       }
       cancelAll(stage);
     });
+    await step('モーフィング: 一番長い言葉でも枠からはみ出さない（文字が縮む）', async () => {
+      motion.setup(stage, fastCtx(false)).run().catch(() => {});
+      await frame();
+      const text = stage.querySelector('.tx-morph-text');
+      const spans = [...text.querySelectorAll('span')];
+      await expect(parseFloat(text.style.fontSize)).toBeLessThan(52);
+      // 言葉を入れ替えながら、どの言葉でも枠に収まることを確かめる（長い言葉は fit が測った幅と同じ）
+      for (const word of ['モーフィング', '溶ける']) {
+        spans[0].textContent = word;
+        await expect(spans[0].offsetWidth).toBeLessThanOrEqual(stage.clientWidth);
+      }
+      cancelAll(stage);
+    });
     await step('モーフィング・動きを減らす: フィルターを外し、ぼかさない', async () => {
       const spy = spyAnimate();
       try {
