@@ -301,6 +301,46 @@ const EXTRA_STEPS = {
       cancelAll(stage);
     });
   },
+
+  'morph-text': async ({ motion, stage, step }) => {
+    await step('モーフィング・通常: しきい値フィルターがかかり、ぼかしを使う', async () => {
+      const spy = spyAnimate();
+      try {
+        await startDemo(motion, stage, false);
+        await expect(getComputedStyle(stage.querySelector('.tx-morph-text')).filter).toContain('url(');
+        const props = spy.keyframes.flat().flatMap(f => Object.keys(f));
+        await expect(props).toContain('filter');
+      } finally {
+        spy.restore();
+      }
+      cancelAll(stage);
+    });
+    await step('モーフィング: 一番長い言葉でも枠からはみ出さない（文字が縮む）', async () => {
+      motion.setup(stage, fastCtx(false)).run().catch(() => {});
+      await frame();
+      const text = stage.querySelector('.tx-morph-text');
+      const spans = [...text.querySelectorAll('span')];
+      await expect(parseFloat(text.style.fontSize)).toBeLessThan(52);
+      // 言葉を入れ替えながら、どの言葉でも枠に収まることを確かめる（長い言葉は fit が測った幅と同じ）
+      for (const word of ['モーフィング', '溶ける']) {
+        spans[0].textContent = word;
+        await expect(spans[0].offsetWidth).toBeLessThanOrEqual(stage.clientWidth);
+      }
+      cancelAll(stage);
+    });
+    await step('モーフィング・動きを減らす: フィルターを外し、ぼかさない', async () => {
+      const spy = spyAnimate();
+      try {
+        await startDemo(motion, stage, true);
+        await expect(getComputedStyle(stage.querySelector('.tx-morph-text')).filter).toBe('none');
+        const props = spy.keyframes.flat().flatMap(f => Object.keys(f));
+        await expect(props).not.toContain('filter');
+      } finally {
+        spy.restore();
+      }
+      cancelAll(stage);
+    });
+  },
 };
 
 /* ---- ストーリーの定義 ---- */
@@ -366,3 +406,4 @@ export const CardDraw = story('card-draw');
 export const Typewriter = story('typewriter');
 export const Ticker = story('ticker');
 export const SyncHighlight = story('sync-highlight');
+export const MorphText = story('morph-text');
