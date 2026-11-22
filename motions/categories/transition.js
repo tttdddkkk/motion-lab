@@ -442,32 +442,54 @@ next.animate(
       easing: 'linear'
     }),
     code: {
-      css: `/* 画面の後ろに黒（.tv-off）、上にノイズの帯（.tv-noise > .tv-band）を置く */
+      css: `/* 画面の後ろに黒（.tv-off）、上にノイズの帯（.tv-noise > .tv-band × 5）を置く */
 .is-open .prev  { animation: tv-prev .8s linear forwards; }
 .is-open .next  { animation: tv-next .8s linear forwards; }
 .is-open .tv-noise { animation: tv-noise .8s step-end forwards; }
+/* 帯の横ずれは、全体の 26%（208ms）の間だけ */
+.is-open .tv-band { animation: .208s step-end forwards; }
 .next { opacity: 0; }
-.tv-noise { opacity: 0; pointer-events: none; }
+.tv-off { position: absolute; inset: 0; background: #000; }
+.tv-noise {
+  position: absolute; inset: 0; z-index: 1;
+  pointer-events: none; opacity: 0; overflow: hidden;
+}
 .tv-band {
   position: absolute; left: -10%; right: -10%;
   background: repeating-linear-gradient(90deg,
     rgba(255,255,255,.85) 0 2px, rgba(0,0,0,.5) 2px 5px);
   mix-blend-mode: screen;
 }
+.tv-band:nth-child(1) { top: 14%; height: 3%; animation-name: tv-band-1; }
+.tv-band:nth-child(2) { top: 31%; height: 7%; animation-name: tv-band-2; }
+.tv-band:nth-child(3) { top: 52%; height: 2%; animation-name: tv-band-3; }
+.tv-band:nth-child(4) { top: 66%; height: 5%; animation-name: tv-band-4; }
+.tv-band:nth-child(5) { top: 83%; height: 3%; animation-name: tv-band-5; }
+@keyframes tv-band-1 { 25% { transform: translateX(-18px); } 50% { transform: translateX(10px); } 75% { transform: translateX(-6px); } }
+@keyframes tv-band-2 { 25% { transform: translateX(12px); } 50% { transform: translateX(-22px); } 75% { transform: translateX(8px); } }
+@keyframes tv-band-3 { 25% { transform: translateX(-8px); } 50% { transform: translateX(16px); } 75% { transform: translateX(-12px); } }
+@keyframes tv-band-4 { 25% { transform: translateX(20px); } 50% { transform: translateX(-10px); } 75% { transform: translateX(4px); } }
+@keyframes tv-band-5 { 25% { transform: translateX(-12px); } 50% { transform: translateX(6px); } 75% { transform: translateX(18px); } }
+/* 前の画面: 揺れる → 横一本の線に潰れる → 点になって消える */
 @keyframes tv-prev {
-  0%, 24% { transform: scale(1, 1); filter: brightness(1);
-            animation-timing-function: cubic-bezier(.7, 0, 1, 1); }
-  40%  { transform: scale(1, .004); filter: brightness(5);
+  0%   { transform: translateX(0) scale(1, 1); filter: brightness(1); }
+  6%   { transform: translateX(-6px) scale(1, 1); }
+  12%  { transform: translateX(8px) scale(1, 1); }
+  18%  { transform: translateX(-3px) scale(1, 1); }
+  24%  { transform: translateX(0) scale(1, 1); filter: brightness(1);
+         animation-timing-function: cubic-bezier(.7, 0, 1, 1); }
+  40%  { transform: translateX(0) scale(1, .004); filter: brightness(5);
          animation-timing-function: ease-in; }
-  52%, 100% { transform: scale(0, .004); filter: brightness(5); }
+  52%, 100% { transform: translateX(0) scale(0, .004); filter: brightness(5); }
 }
+/* 次の画面: 暗転のあと、横一本の線が伸び、縦に開いて点く */
 @keyframes tv-next {
-  0%, 61.9% { opacity: 0; }
+  0%, 61.99% { opacity: 0; transform: scale(0, .004); filter: brightness(5); }
   62%  { opacity: 1; transform: scale(0, .004); filter: brightness(5);
          animation-timing-function: cubic-bezier(.2, 0, 0, 1); }
-  70%  { transform: scale(1, .004); filter: brightness(5);
+  70%  { opacity: 1; transform: scale(1, .004); filter: brightness(5);
          animation-timing-function: cubic-bezier(.2, 0, 0, 1); }
-  84%  { transform: scale(1, 1); filter: brightness(1.4); }
+  84%  { opacity: 1; transform: scale(1, 1); filter: brightness(1.4); }
   100% { opacity: 1; transform: scale(1, 1); filter: brightness(1); }
 }
 @keyframes tv-noise {
@@ -476,14 +498,22 @@ next.animate(
   66% { opacity: .8; } 80%, 100% { opacity: 0; }
 }`,
       waapi: `const options = { duration: 800, easing: 'linear', fill: 'forwards' };
+// 段ごとに切り替わる（補間しない）キーフレームにする。ノイズのちらつきに使う
 const step = frames => frames.map(f => ({ ...f, easing: 'step-end' }));
+
+// 前の画面: 揺れる → 横一本の線に潰れる → 点になって消える
 prev.animate([
-  { offset: 0,   transform: 'scale(1, 1)', filter: 'brightness(1)' },
-  { offset: .24, transform: 'scale(1, 1)', filter: 'brightness(1)', easing: 'cubic-bezier(.7, 0, 1, 1)' },
-  { offset: .4,  transform: 'scale(1, .004)', filter: 'brightness(5)', easing: 'ease-in' },
-  { offset: .52, transform: 'scale(0, .004)', filter: 'brightness(5)' },
-  { offset: 1,   transform: 'scale(0, .004)', filter: 'brightness(5)' }
+  { offset: 0,   transform: 'translateX(0) scale(1, 1)', filter: 'brightness(1)' },
+  { offset: .06, transform: 'translateX(-6px) scale(1, 1)' },
+  { offset: .12, transform: 'translateX(8px) scale(1, 1)' },
+  { offset: .18, transform: 'translateX(-3px) scale(1, 1)' },
+  { offset: .24, transform: 'translateX(0) scale(1, 1)', filter: 'brightness(1)', easing: 'cubic-bezier(.7, 0, 1, 1)' },
+  { offset: .4,  transform: 'translateX(0) scale(1, .004)', filter: 'brightness(5)', easing: 'ease-in' },
+  { offset: .52, transform: 'translateX(0) scale(0, .004)', filter: 'brightness(5)' },
+  { offset: 1,   transform: 'translateX(0) scale(0, .004)', filter: 'brightness(5)' }
 ], options);
+
+// 次の画面: 暗転のあと、横一本の線が伸び、縦に開いて点く
 next.animate([
   { offset: 0,   opacity: 0, transform: 'scale(0, .004)', filter: 'brightness(5)' },
   { offset: .62, opacity: 0, transform: 'scale(0, .004)', filter: 'brightness(5)' },
@@ -492,14 +522,26 @@ next.animate([
   { offset: .84, opacity: 1, transform: 'scale(1, 1)', filter: 'brightness(1.4)' },
   { offset: 1,   opacity: 1, transform: 'scale(1, 1)', filter: 'brightness(1)' }
 ], options);
+
+// ノイズの層: 消える直前と、点く直後にちらつく
 noise.animate(step([
   { offset: 0, opacity: 0 }, { offset: .02, opacity: 1 }, { offset: .08, opacity: .4 },
   { offset: .13, opacity: 1 }, { offset: .24, opacity: 0 }, { offset: .62, opacity: 0 },
   { offset: .66, opacity: .8 }, { offset: .8, opacity: 0 }, { offset: 1, opacity: 0 }
 ]), options);
-// 帯ごとに横へずらす（例: 1本目）
-band.animate(step([0, -18, 10, -6, 0].map(x => ({ transform: \`translateX(\${x}px)\` }))),
-  { ...options, duration: 800 * .26 });`,
+
+// ノイズの帯（.tv-band）5本。位置は top / height（%）、横ずれ（px）は全体の 26% の間だけ
+const BANDS = [
+  { top: 14, height: 3, shift: [0, -18, 10, -6, 0] },
+  { top: 31, height: 7, shift: [0, 12, -22, 8, 0] },
+  { top: 52, height: 2, shift: [0, -8, 16, -12, 0] },
+  { top: 66, height: 5, shift: [0, 20, -10, 4, 0] },
+  { top: 83, height: 3, shift: [0, -12, 6, 18, 0] }
+];
+noise.querySelectorAll('.tv-band').forEach((band, i) => {
+  band.animate(step(BANDS[i].shift.map(x => ({ transform: \`translateX(\${x}px)\` }))),
+    { ...options, duration: 800 * .26 });
+});`,
       reduced: `/* ノイズのちらつき（点滅）と潰れる動きを外し、不透明度だけで切り替える */
 @media (prefers-reduced-motion: reduce) {
   .tv-noise { display: none; }
