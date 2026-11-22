@@ -45,10 +45,7 @@ function screenTransition(stage, ctx, { hidden, enter, leave, build, reduced, ms
     ...(enter ? [next.animate(enter, options)] : []),
     ...(leave ? [prev.animate(leave, options)] : []),
   ];
-  const fadeIn = () => {
-    next.style.cssText = '';
-    return [next.animate([{ opacity: 0 }, { opacity: 1 }], { duration: ctx.dur(REDUCED_FADE_MS), fill: 'forwards' })];
-  };
+  const fadeIn = () => [next.animate([{ opacity: 0 }, { opacity: 1 }], { duration: ctx.dur(REDUCED_FADE_MS), fill: 'forwards' })];
   /** @type {(options: KeyframeAnimationOptions) => Animation[]} */
   const playReduced = reduced ? reduced({ stage, prev, next }, ctx) : fadeIn;
   /** @type {Animation[]} */
@@ -59,6 +56,8 @@ function screenTransition(stage, ctx, { hidden, enter, leave, build, reduced, ms
     active.forEach(a => a.cancel());
     next.style.cssText = '';
     Object.assign(next.style, hidden);
+    // hidden は通常版の隠し方（画面外へずらす・切り抜くなど）。動きを減らす版はそれを外し、各版のキーフレームで隠す
+    if (ctx.reduced()) next.style.cssText = '';
     const anims = active = (ctx.reduced() ? playReduced : play)({ duration: ctx.dur(ms), easing, fill: 'forwards' });
     await Promise.all(anims.map(a => a.finished));
     await ctx.wait(700);   // 表示したまましばらく見せる
@@ -231,21 +230,79 @@ const buildGridFlip = ({ stage }, ctx) => {
   stage.append(grid);
   const tiles = /** @type {HTMLElement[]} */ ([...grid.children]);
   return options => [
-    // タイルの層は、再生中だけ見せる（CSS の既定は opacity: 0。cancel で元に戻る）
-    grid.animate([{ opacity: 1 }, { opacity: 1 }], { duration: options.duration, fill: 'forwards' }),
+    showGrid(grid, options),
     ...tiles.map(tile => tile.animate(
       [{ transform: 'perspective(600px) rotateY(0deg)' }, { transform: 'perspective(600px) rotateY(180deg)' }],
-      { ...options, duration: ctx.dur(GRID.tileMs), delay: ctx.dur(Number(tile.dataset.wave) * GRID.stepMs) })),
+      waveTiming(tile, options, ctx))),
   ];
 };
 
-/* 動きを減らす版の表示用コード。transform / clip-path を使わず、不透明度だけで入る */
-const reducedCode = `@media (prefers-reduced-motion: reduce) {
-  .next { transform: none; opacity: 0; transition: opacity .3s linear; }
-  .next.is-open { opacity: 1; }
-}`;
+/* タイルの層は、再生中だけ見せる（CSS の既定は opacity: 0。cancel で元に戻る） */
+const showGrid = (/** @type {HTMLElement} */ grid, /** @type {KeyframeAnimationOptions} */ options) =>
+  grid.animate([{ opacity: 1 }, { opacity: 1 }], { duration: options.duration, fill: 'forwards' });
 
-/** @type {import('../types.js').Motion[]} */
+/* タイル1枚の時間。左上から右下へ、斜めの波で順に動く */
+const waveTiming = (/** @type {HTMLElement} */ tile, /** @type {KeyframeAnimationOptions} */ options, /** @type {import('../types.js').Ctx} */ ctx) =>
+  ({ ...options, duration: ctx.dur(GRID.tileMs), delay: ctx.dur(Number(tile.dataset.wave) * GRID.stepMs) });
+
+/**
+ * 動きを減らす版: タイルを裏返さず、表（一覧の切れ端）を同じ波の順で1枚ずつ消して、下の次の画面を見せる。
+ * タイルは buildGridFlip が作ったものを使う（screenTransition は build を先に呼ぶ）
+ * @type {TransitionBuild}
+ */
+const buildGridFlipReduced = ({ stage, next }, ctx) => {
+  const grid = q(stage, '.flip-grid');
+  const tiles = /** @type {HTMLElement[]} */ ([...grid.children]);
+  return options => [
+    showGrid(grid, options),
+    next.animate([{ opacity: 1 }, { opacity: 1 }], options),
+    ...tiles.map(tile => q(tile, '.front').animate([{ opacity: 1 }, { opacity: 0 }], waveTiming(tile, options, ctx))),
+  ];
+};
+
+/* ---- 動きを減らす版の共通部品 ---- */
+
+/**
+ * 次の画面を、境界をぼかしたマスクで一方向（または一点）から現す。画面そのものは動かさない。
+ * マスクは、画面より大きいグラデーション画像の位置（position）か大きさ（size）を変えて、見える範囲を広げる。
+ * dim を渡すと、前の画面をその明るさまで暗くする（奥へ下がる・陰に入る印象を残す）
+ * @param {{ image: string, size: [string, string], position: [string, string], dim?: number }} m  size / position は [始め, 終わり]
+ * @returns {TransitionBuild}
+ */
+const softReveal = m => ({ prev, next }) => options => {
+  const frame = (/** @type {0 | 1} */ i) =>
+    ({ opacity: 1, maskImage: m.image, maskRepeat: 'no-repeat', maskSize: m.size[i], maskPosition: m.position[i] });
+  return [
+    next.animate([frame(0), frame(1)], options),
+    ...(m.dim === undefined ? [] : [prev.animate([{ filter: 'brightness(1)' }, { filter: `brightness(${m.dim})` }], options)]),
+  ];
+};
+
+/**
+ * 円形リヴィールの動きを減らす版: 縁をぼかした円のマスクを、画面下部（50%, 88%）を中心に広げる。
+ * 円の大きさは画面の寸法で決まるため、再生のたびに測る（縮小表示の影響を受けない offsetWidth / offsetHeight）
+ * @type {TransitionBuild}
+ */
+const circleSoftReveal = (els, ctx) => options => {
+  const w = els.stage.offsetWidth, h = els.stage.offsetHeight;
+  const cx = w * .5, cy = h * .88;
+  // 開ききったときの直径。中心から一番遠い角までを、ぼかし（半径の外側 20%）の分だけ大きくして覆う
+  const d = 2 * Math.hypot(Math.max(cx, w - cx), Math.max(cy, h - cy)) * 1.25;
+  return softReveal({
+    image: 'radial-gradient(circle closest-side, #000 80%, transparent)',
+    size: ['0px 0px', `${d}px ${d}px`],
+    position: [`${cx}px ${cy}px`, `${cx - d / 2}px ${cy - d / 2}px`],   // 大きさと一緒に動かし、中心を保つ
+  })(els, ctx)(options);
+};
+
+/* 横・縦に流すマスク。画像を画面の 2.5 倍にし、透明 → 不透明の境界（全体の 40〜60%）を画面の端から端まで通す */
+/** @typedef {{ image: string, size: [string, string], position: [string, string] }} Sweep */
+/** @type {Sweep} */
+const SWEEP_FROM_RIGHT = { image: 'linear-gradient(to right, transparent 40%, #000 60%)', size: ['250% 100%', '250% 100%'], position: ['0% 0%', '100% 0%'] };
+/** @type {Sweep} */
+const SWEEP_FROM_BOTTOM = { image: 'linear-gradient(to bottom, transparent 40%, #000 60%)', size: ['100% 250%', '100% 250%'], position: ['0% 0%', '0% 100%'] };
+
+/* 動きを減らす版の表示用コード。transform / clip-path を使わず、不透明度だけで入る *//** @type {import('../types.js').Motion[]} */
 export const TRANSITION_MOTIONS = [
   {
     id: 'circle-reveal',
@@ -258,6 +315,7 @@ export const TRANSITION_MOTIONS = [
     easing: 'cubic-bezier(.65, 0, .35, 1)',
     desc: '画面下部から円形に広がって次の画面に切り替わる。',
     setup: (stage, ctx) => screenTransition(stage, ctx, {
+      reduced: circleSoftReveal,
       hidden: { clipPath: 'circle(0% at 50% 88%)' },
       enter: [{ clipPath: 'circle(0% at 50% 88%)' }, { clipPath: 'circle(150% at 50% 88%)' }],
       ms: 700,
@@ -278,9 +336,23 @@ export const TRANSITION_MOTIONS = [
     easing: 'cubic-bezier(.65, 0, .35, 1)',
     fill: 'forwards' }
 );`,
-      reduced: `@media (prefers-reduced-motion: reduce) {
-  .next { clip-path: none; opacity: 0; transition: opacity .3s linear; }
-  .next.is-open { opacity: 1; }
+      reduced: `/* 円は残し、縁をぼかしたマスクで、画面下部から広げる（clip-path を使わない）。
+   --cx / --cy は円の中心（画面の 50% / 88% を px で）、--d は開ききったときの直径
+   （中心から一番遠い角までの距離 × 2 × 1.25）。どれも画面の寸法から JS で入れる */
+@media (prefers-reduced-motion: reduce) {
+  .next {
+    clip-path: none;
+    mask-image: radial-gradient(circle closest-side, #000 80%, transparent);
+    mask-repeat: no-repeat;
+    mask-size: 0px 0px;
+    mask-position: var(--cx) var(--cy);
+    transition: mask-size .7s cubic-bezier(.65, 0, .35, 1),
+                mask-position .7s cubic-bezier(.65, 0, .35, 1);
+  }
+  .next.is-open {
+    mask-size: var(--d) var(--d);
+    mask-position: calc(var(--cx) - var(--d) / 2) calc(var(--cy) - var(--d) / 2);
+  }
 }`
     }
   },
@@ -295,6 +367,7 @@ export const TRANSITION_MOTIONS = [
     easing: 'cubic-bezier(.2, 0, 0, 1)',
     desc: '次の画面が右から入り、前の画面は少しだけ左へ下がる。',
     setup: (stage, ctx) => screenTransition(stage, ctx, {
+      reduced: softReveal({ ...SWEEP_FROM_RIGHT, dim: .8 }),
       hidden: { transform: 'translateX(100%)' },
       enter: [{ transform: 'translateX(100%)' }, { transform: 'translateX(0)' }],
       leave: [{ transform: 'translateX(0)' }, { transform: 'translateX(-30%)' }],
@@ -316,7 +389,18 @@ next.animate(
   [{ transform: 'translateX(100%)' }, { transform: 'translateX(0)' }], options);
 prev.animate(
   [{ transform: 'translateX(0)' }, { transform: 'translateX(-30%)' }], options);`,
-      reduced: reducedCode
+      reduced: `/* 右から入る向きは残し、画面は動かさない。境界をぼかしたマスクを右から左へ流し、前の画面は少し暗くする */
+@media (prefers-reduced-motion: reduce) {
+  .next, .prev { transform: none; }
+  .next {
+    mask-image: linear-gradient(to right, transparent 40%, #000 60%);
+    mask-size: 250% 100%; mask-repeat: no-repeat; mask-position: 0% 0%;
+    transition: mask-position .4s cubic-bezier(.2, 0, 0, 1);
+  }
+  .prev { transition: filter .4s cubic-bezier(.2, 0, 0, 1); }
+  .is-open .next { mask-position: 100% 0%; }
+  .is-open .prev { filter: brightness(.8); }
+}`
     }
   },
   {
@@ -330,6 +414,7 @@ prev.animate(
     easing: 'cubic-bezier(.32, .72, 0, 1)',
     desc: '次の画面が下から上へ入る。前の画面は動かず、その上に重なる。',
     setup: (stage, ctx) => screenTransition(stage, ctx, {
+      reduced: softReveal({ ...SWEEP_FROM_BOTTOM, dim: .7 }),
       hidden: { transform: 'translateY(100%)' },
       enter: [{ transform: 'translateY(100%)' }, { transform: 'translateY(0)' }],
       ms: 450,
@@ -350,7 +435,19 @@ prev.animate(
     easing: 'cubic-bezier(.32, .72, 0, 1)',
     fill: 'forwards' }
 );`,
-      reduced: reducedCode
+      reduced: `/* 下から現れる向きは残し、画面は動かさない。境界をぼかしたマスクを下から上へ流し、前の画面は暗くする */
+@media (prefers-reduced-motion: reduce) {
+  .next {
+    transform: none;
+    mask-image: linear-gradient(to bottom, transparent 40%, #000 60%);
+    mask-size: 100% 250%; mask-repeat: no-repeat; mask-position: 0% 0%;
+    transition: mask-position .45s cubic-bezier(.32, .72, 0, 1);
+  }
+  .prev { transition: filter .45s cubic-bezier(.32, .72, 0, 1); }
+  /* 開くとき、前の画面にも .is-open を付ける */
+  .next.is-open { mask-position: 0% 100%; }
+  .prev.is-open { filter: brightness(.7); }
+}`
     }
   },
   {
@@ -364,6 +461,11 @@ prev.animate(
     easing: 'cubic-bezier(.65, 0, .35, 1)',
     desc: '左から右へ境界線が走り、次の画面に切り替わる。',
     setup: (stage, ctx) => screenTransition(stage, ctx, {
+      reduced: softReveal({
+        image: 'linear-gradient(to left, transparent 45%, #000 55%)',
+        size: ['250% 100%', '250% 100%'],
+        position: ['100% 0%', '0% 0%']
+      }),
       hidden: { clipPath: 'inset(0 100% 0 0)' },
       enter: [{ clipPath: 'inset(0 100% 0 0)' }, { clipPath: 'inset(0 0 0 0)' }],
       ms: 600,
@@ -384,9 +486,15 @@ prev.animate(
     easing: 'cubic-bezier(.65, 0, .35, 1)',
     fill: 'forwards' }
 );`,
-      reduced: `@media (prefers-reduced-motion: reduce) {
-  .next { clip-path: none; opacity: 0; transition: opacity .3s linear; }
-  .next.is-open { opacity: 1; }
+      reduced: `/* 左から右へ走る境界は残し、縁を少しぼかす（clip-path の代わりにマスクを使う） */
+@media (prefers-reduced-motion: reduce) {
+  .next {
+    clip-path: none;
+    mask-image: linear-gradient(to left, transparent 45%, #000 55%);
+    mask-size: 250% 100%; mask-repeat: no-repeat; mask-position: 100% 0%;
+    transition: mask-position .6s cubic-bezier(.65, 0, .35, 1);
+  }
+  .next.is-open { mask-position: 0% 0%; }
 }`
     }
   },
@@ -401,6 +509,9 @@ prev.animate(
     easing: 'cubic-bezier(.2, 0, 0, 1)',
     desc: '次の画面が少し小さい状態から、拡大しながら現れる。',
     setup: (stage, ctx) => screenTransition(stage, ctx, {
+      reduced: ({ next }) => options => [
+        next.animate([{ opacity: 0, filter: 'blur(12px)' }, { opacity: 1, filter: 'blur(0px)' }], options)
+      ],
       hidden: { opacity: '0', transform: 'scale(.92)' },
       enter: [{ opacity: 0, transform: 'scale(.92)' }, { opacity: 1, transform: 'scale(1)' }],
       ms: 450,
@@ -424,7 +535,14 @@ prev.animate(
     easing: 'cubic-bezier(.2, 0, 0, 1)',
     fill: 'forwards' }
 );`,
-      reduced: reducedCode
+      reduced: `/* 拡大の代わりに、ぼけた状態からピントが合うように現す */
+@media (prefers-reduced-motion: reduce) {
+  .next {
+    transform: none; opacity: 0; filter: blur(12px);
+    transition: opacity .45s cubic-bezier(.2, 0, 0, 1), filter .45s cubic-bezier(.2, 0, 0, 1);
+  }
+  .next.is-open { opacity: 1; filter: blur(0px); }
+}`
     }
   },
   {
@@ -473,6 +591,7 @@ prev.animate(
     easing: 'cubic-bezier(.65, 0, .35, 1)',
     desc: '2枚の画面を箱の正面と右側面に置き、箱ごと縦軸で90度回して次の面に切り替える。',
     setup: (stage, ctx) => screenTransition(stage, ctx, {
+      reduced: softReveal({ ...SWEEP_FROM_RIGHT, dim: .35 }),
       hidden: { opacity: '0' },
       build: buildCube,
       ms: 700,
@@ -505,11 +624,18 @@ cube.animate(
     easing: 'cubic-bezier(.65, 0, .35, 1)',
     fill: 'forwards' }
 );`,
-      reduced: `/* 箱を使わず、次の画面を正面に重ねて不透明度だけで切り替える */
+      reduced: `/* 回転と立体は外し、「面が陰に入り、隣の面が右から現れる」ことだけを残す。
+   境界をぼかしたマスクを右から左へ流し、前の画面は大きく暗くする */
 @media (prefers-reduced-motion: reduce) {
   .cube, .cube > .prev, .cube > .next { transform: none; transition: none; }
-  .cube > .next { opacity: 0; transition: opacity .3s linear; }
-  .cube.is-open > .next { opacity: 1; }
+  .cube > .next {
+    mask-image: linear-gradient(to right, transparent 40%, #000 60%);
+    mask-size: 250% 100%; mask-repeat: no-repeat; mask-position: 0% 0%;
+    transition: mask-position .7s cubic-bezier(.65, 0, .35, 1);
+  }
+  .cube > .prev { transition: filter .7s cubic-bezier(.65, 0, .35, 1); }
+  .cube.is-open > .next { mask-position: 100% 0%; }
+  .cube.is-open > .prev { filter: brightness(.35); }
 }`
     }
   },
@@ -686,6 +812,7 @@ noise.querySelectorAll('.tv-band').forEach((band, i) => {
     easing: 'cubic-bezier(.4, 0, .2, 1)',
     desc: '画面を 4×6 のタイルに分け、左上から右下へ波のように1枚ずつ裏返して次の画面にする。',
     setup: (stage, ctx) => screenTransition(stage, ctx, {
+      reduced: buildGridFlipReduced,
       hidden: { opacity: '0' },
       build: buildGridFlip,
       ms: GRID_MS,
@@ -711,11 +838,14 @@ noise.querySelectorAll('.tv-band').forEach((band, i) => {
       fill: 'forwards' }
   );
 });`,
-      reduced: `/* タイルを使わず、不透明度だけで切り替える */
+      reduced: `/* タイルを裏返さず、表（前の画面の切れ端）を同じ波の順で1枚ずつ消し、下の次の画面を見せる */
 @media (prefers-reduced-motion: reduce) {
-  .flip-grid { display: none; }
-  .next { opacity: 0; transition: opacity .3s linear; }
-  .is-open .next { opacity: 1; }
+  .is-open .flip-tile { transform: none; }
+  .flip-face.front {
+    transition: opacity .4s cubic-bezier(.4, 0, .2, 1);
+    transition-delay: calc(var(--wave) * 45ms);
+  }
+  .is-open .flip-face.front { opacity: 0; }
 }`
     }
   },
