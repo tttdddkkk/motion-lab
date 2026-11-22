@@ -22,7 +22,7 @@ const REDUCED_FADE_MS = 300;
 
 /**
  * 「一覧 → 詳細」の画面遷移モーションの共通部分。
- * ここが持つもの: 2枚の画面の用意、次の画面を隠した初期状態、再生手順（入る → 見せる → 初期状態に戻す）、動きを減らす版（不透明度だけで入る）。
+ * ここが持つもの: 2枚の画面の用意、次の画面を隠した初期状態、再生手順（入る → 見せる → 初期状態に戻す）、動きを減らす版（既定は不透明度だけで入る）。
  * 何がどう動くかは、呼び出し側が enter / leave（キーフレームだけで済む場合）か build（追加の DOM が要る場合）で渡す。
  * @param {HTMLElement} stage
  * @param {import('../types.js').Ctx} ctx
@@ -31,10 +31,11 @@ const REDUCED_FADE_MS = 300;
  * @param {Keyframe[]} [spec.enter]  次の画面の入り方
  * @param {Keyframe[]} [spec.leave]  前の画面の去り方（なければ動かさない）
  * @param {TransitionBuild} [spec.build]  enter / leave の代わりに、動き全体を組み立てる
+ * @param {TransitionBuild} [spec.reduced]  動きを減らす版を差し替える（transform / clip-path は使わない）。なければ不透明度だけで入る
  * @param {number} spec.ms
  * @param {string} spec.easing
  */
-function screenTransition(stage, ctx, { hidden, enter, leave, build, ms, easing }) {
+function screenTransition(stage, ctx, { hidden, enter, leave, build, reduced, ms, easing }) {
   stage.innerHTML = SCREENS_HTML;
   const prev = q(stage, '.screen.a');
   const next = q(stage, '.screen.b');
@@ -44,13 +45,24 @@ function screenTransition(stage, ctx, { hidden, enter, leave, build, ms, easing 
     ...(enter ? [next.animate(enter, options)] : []),
     ...(leave ? [prev.animate(leave, options)] : []),
   ];
+  const fadeIn = () => {
+    next.style.cssText = '';
+    return [next.animate([{ opacity: 0 }, { opacity: 1 }], { duration: ctx.dur(REDUCED_FADE_MS), fill: 'forwards' })];
+  };
+  /** @type {(options: KeyframeAnimationOptions) => Animation[]} */
+  const playReduced = reduced ? reduced({ stage, prev, next }, ctx) : fadeIn;
+  /** @type {Animation[]} */
+  let active = [];
   const run = async () => {
-    const anims = ctx.reduced()
-      ? (next.style.cssText = '',
-         [next.animate([{ opacity: 0 }, { opacity: 1 }], { duration: ctx.dur(REDUCED_FADE_MS), fill: 'forwards' })])
-      : play({ duration: ctx.dur(ms), easing, fill: 'forwards' });
+    // 再生し直し（ビューアの再生ボタン・設定の切り替え）では、同じ setup のまま run が呼ばれる。前の再生を止めて初期状態から始める
+    // （止めた再生の finished は AbortError で終わり、ビューアは正常な中断として扱う）
+    active.forEach(a => a.cancel());
+    next.style.cssText = '';
+    Object.assign(next.style, hidden);
+    const anims = active = (ctx.reduced() ? playReduced : play)({ duration: ctx.dur(ms), easing, fill: 'forwards' });
     await Promise.all(anims.map(a => a.finished));
     await ctx.wait(700);   // 表示したまましばらく見せる
+    if (active !== anims) return;   // 見せている間に再生し直された。後片付けは新しい再生に任せる
     anims.forEach(a => a.cancel());
     next.style.cssText = '';
     Object.assign(next.style, hidden);
@@ -119,6 +131,82 @@ const buildTvOff = ({ stage, prev, next }) => {
       stepped(TV_BANDS[i].shift.map(x => ({ transform: `translateX(${x}px)` }))),
       { ...options, duration: Number(options.duration) * .26 })),
   ];
+};
+
+/* 動きを減らす版: 画面は動かさず、上下と左右から黒い幕を閉じて「線 → 点 → 暗転」を作り、幕を開いて次の画面を点ける。
+   横揺れとノイズは出さない。時間の区切りは通常版と同じ */
+const TV_SHUTTER_V = [   // 上下の幕の高さ
+  { offset: 0, height: '0%' },
+  { offset: .24, height: '0%', easing: 'cubic-bezier(.7, 0, 1, 1)' },
+  { offset: .4, height: 'calc(50% - 1px)' },
+  { offset: .7, height: 'calc(50% - 1px)', easing: 'cubic-bezier(.2, 0, 0, 1)' },
+  { offset: .84, height: '0%' },
+  { offset: 1, height: '0%' },
+];
+const TV_SHUTTER_H = [   // 左右の幕の幅
+  { offset: 0, width: '0%' },
+  { offset: .4, width: '0%', easing: 'ease-in' },
+  { offset: .52, width: '50%' },
+  { offset: .62, width: '50%', easing: 'cubic-bezier(.2, 0, 0, 1)' },
+  { offset: .7, width: '0%' },
+  { offset: 1, width: '0%' },
+];
+/* 幕が閉じきっている間（.52〜.62）に、前の画面と次の画面を入れ替える。線の明るさは通常版と同じ */
+const TV_PREV_REDUCED = [
+  { offset: 0, opacity: 1, filter: 'brightness(1)' },
+  { offset: .24, opacity: 1, filter: 'brightness(1)' },
+  { offset: .4, opacity: 1, filter: 'brightness(5)' },
+  { offset: .62, opacity: 1, filter: 'brightness(5)' },
+  { offset: .62, opacity: 0, filter: 'brightness(5)' },
+  { offset: 1, opacity: 0, filter: 'brightness(5)' },
+];
+const TV_NEXT_REDUCED = [
+  { offset: 0, opacity: 0, filter: 'brightness(5)' },
+  { offset: .62, opacity: 0, filter: 'brightness(5)' },
+  { offset: .62, opacity: 1, filter: 'brightness(5)' },
+  { offset: .7, opacity: 1, filter: 'brightness(5)' },
+  { offset: .84, opacity: 1, filter: 'brightness(1.4)' },
+  { offset: 1, opacity: 1, filter: 'brightness(1)' },
+];
+
+/** @type {TransitionBuild} */
+const buildTvOffReduced = ({ stage, prev, next }) => {
+  const shutter = document.createElement('div');
+  shutter.className = 'tv-shutter';
+  shutter.innerHTML = '<div class="top"></div><div class="bottom"></div><div class="left"></div><div class="right"></div>';
+  stage.append(shutter);
+  const [top, bottom, left, right] = /** @type {HTMLElement[]} */ ([...shutter.children]);
+  return options => [
+    prev.animate(TV_PREV_REDUCED, options),
+    next.animate(TV_NEXT_REDUCED, options),
+    ...[top, bottom].map(el => el.animate(TV_SHUTTER_V, options)),
+    ...[left, right].map(el => el.animate(TV_SHUTTER_H, options)),
+  ];
+};
+
+/* ---- キューブ回転（cube-rotate）の部品 ---- */
+
+/** @type {TransitionBuild} */
+const buildCube = ({ stage, prev, next }) => {
+  // 2枚の画面を、本物の箱（preserve-3d）の正面と右側面に置く。奥の面は手前の面に隠れるので、回り始めるまで次の画面は見えない
+  const view = document.createElement('div');
+  view.className = 'cube-view';
+  const cube = document.createElement('div');
+  cube.className = 'cube';
+  cube.append(prev, next);
+  view.append(cube);
+  stage.append(view);
+  return options => {
+    // 箱の奥行きは画面の幅と同じ。縮小表示の影響を受けない offsetWidth で測る
+    const half = stage.offsetWidth / 2;
+    const hold = frame => [frame, frame];   // 再生中だけ面の位置に置く（cancel で元に戻る）
+    return [
+      prev.animate(hold({ transform: `translateZ(${half}px)` }), options),
+      next.animate(hold({ opacity: 1, transform: `rotateY(90deg) translateZ(${half}px)` }), options),
+      cube.animate([{ transform: `translateZ(${-half}px) rotateY(0deg)` },
+                    { transform: `translateZ(${-half}px) rotateY(-90deg)` }], options),
+    ];
+  };
 };
 
 /* ---- グリッドのパタパタ（grid-flip）の部品 ---- */
@@ -383,45 +471,45 @@ prev.animate(
     ms: 700,
     msLabel: '箱が回りきるまで',
     easing: 'cubic-bezier(.65, 0, .35, 1)',
-    desc: '画面を箱の側面に見立て、縦軸で90度回して次の面に切り替える。',
+    desc: '2枚の画面を箱の正面と右側面に置き、箱ごと縦軸で90度回して次の面に切り替える。',
     setup: (stage, ctx) => screenTransition(stage, ctx, {
-      hidden: { transformOrigin: '0% 50%', transform: 'perspective(1000px) translateX(100%) rotateY(90deg)' },
-      enter: [{ transform: 'perspective(1000px) translateX(100%) rotateY(90deg)' },
-              { transform: 'perspective(1000px) translateX(0) rotateY(0deg)' }],
-      leave: [{ transformOrigin: '100% 50%', transform: 'perspective(1000px) translateX(0) rotateY(0deg)' },
-              { transformOrigin: '100% 50%', transform: 'perspective(1000px) translateX(-100%) rotateY(-90deg)' }],
+      hidden: { opacity: '0' },
+      build: buildCube,
       ms: 700,
       easing: 'cubic-bezier(.65, 0, .35, 1)'
     }),
     code: {
-      css: `/* 前の画面は右端、次の画面は左端を軸に回す。2枚の辺が合わさって箱の角になる */
-.prev, .next {
+      css: `/* .cube-view > .cube > (.prev, .next)。2枚を箱の正面と右側面に置き、箱ごと回す */
+.cube-view { position: relative; perspective: 1000px; }
+.cube {
+  --half: 160px;   /* 画面の幅の半分（箱の奥行きの半分） */
+  position: absolute; inset: 0;
+  transform-style: preserve-3d;
+  transform: translateZ(calc(var(--half) * -1)) rotateY(0deg);
   transition: transform .7s cubic-bezier(.65, 0, .35, 1);
 }
-.prev { transform-origin: 100% 50%; }
-.next {
-  transform-origin: 0% 50%;
-  transform: perspective(1000px) translateX(100%) rotateY(90deg);
-}
-.is-open .prev {
-  transform: perspective(1000px) translateX(-100%) rotateY(-90deg);
-}
-.is-open .next {
-  transform: perspective(1000px) translateX(0) rotateY(0deg);
+.cube > .prev, .cube > .next { position: absolute; inset: 0; }
+.cube > .prev { transform: translateZ(var(--half)); }
+.cube > .next { transform: rotateY(90deg) translateZ(var(--half)); }
+.cube.is-open {
+  transform: translateZ(calc(var(--half) * -1)) rotateY(-90deg);
 }`,
-      waapi: `const options = { duration: 700, easing: 'cubic-bezier(.65, 0, .35, 1)', fill: 'forwards' };
-prev.style.transformOrigin = '100% 50%';
-next.style.transformOrigin = '0% 50%';
-prev.animate(
-  [{ transform: 'perspective(1000px) translateX(0) rotateY(0deg)' },
-   { transform: 'perspective(1000px) translateX(-100%) rotateY(-90deg)' }], options);
-next.animate(
-  [{ transform: 'perspective(1000px) translateX(100%) rotateY(90deg)' },
-   { transform: 'perspective(1000px) translateX(0) rotateY(0deg)' }], options);`,
-      reduced: `@media (prefers-reduced-motion: reduce) {
-  .prev, .next { transform: none; }
-  .next { opacity: 0; transition: opacity .3s linear; }
-  .is-open .next { opacity: 1; }
+      waapi: `// 2枚を箱の正面と右側面に置く。half は画面の幅の半分
+const half = view.offsetWidth / 2;
+prev.style.transform = \`translateZ(\${half}px)\`;
+next.style.transform = \`rotateY(90deg) translateZ(\${half}px)\`;
+cube.animate(
+  [{ transform: \`translateZ(\${-half}px) rotateY(0deg)\` },
+   { transform: \`translateZ(\${-half}px) rotateY(-90deg)\` }],
+  { duration: 700,
+    easing: 'cubic-bezier(.65, 0, .35, 1)',
+    fill: 'forwards' }
+);`,
+      reduced: `/* 箱を使わず、次の画面を正面に重ねて不透明度だけで切り替える */
+@media (prefers-reduced-motion: reduce) {
+  .cube, .cube > .prev, .cube > .next { transform: none; transition: none; }
+  .cube > .next { opacity: 0; transition: opacity .3s linear; }
+  .cube.is-open > .next { opacity: 1; }
 }`
     }
   },
@@ -434,10 +522,11 @@ next.animate(
     ms: 800,
     msLabel: 'ノイズ → 消灯 → 次の画面が点くまで',
     easing: 'linear',
-    desc: '横ノイズが走って画面が一本の線に潰れ、暗転のあと、次の画面が線から開いて点く。全体は linear で、区間ごとにイージングを変える。',
+    desc: '横ノイズが走って画面が一本の線に潰れ、暗転のあと、次の画面が線から開いて点く。全体は linear で、区間ごとにイージングを変える。動きを減らす版は、横揺れとノイズを外し、黒い幕で同じ「プツン」を作る。',
     setup: (stage, ctx) => screenTransition(stage, ctx, {
       hidden: { opacity: '0' },
       build: buildTvOff,
+      reduced: buildTvOffReduced,
       ms: 800,
       easing: 'linear'
     }),
@@ -542,12 +631,47 @@ noise.querySelectorAll('.tv-band').forEach((band, i) => {
   band.animate(step(BANDS[i].shift.map(x => ({ transform: \`translateX(\${x}px)\` }))),
     { ...options, duration: 800 * .26 });
 });`,
-      reduced: `/* ノイズのちらつき（点滅）と潰れる動きを外し、不透明度だけで切り替える */
+      reduced: `/* 横揺れとノイズを外す。画面は変形させず、上下と左右から黒い幕（.tv-shutter）を閉じて
+   「線 → 点 → 暗転」を作り、幕を開いて次の画面を点ける。時間の区切りは通常版と同じ */
 @media (prefers-reduced-motion: reduce) {
   .tv-noise { display: none; }
-  .is-open .prev, .is-open .next { animation: none; }
-  .next { opacity: 0; transition: opacity .3s linear; }
-  .is-open .next { opacity: 1; }
+  .is-open .prev { animation: tv-prev-reduced .8s linear forwards; }
+  .is-open .next { animation: tv-next-reduced .8s linear forwards; }
+  .tv-shutter > * { position: absolute; background: #000; }
+  .tv-shutter > .top, .tv-shutter > .bottom { left: 0; right: 0; height: 0; }
+  .tv-shutter > .top { top: 0; }
+  .tv-shutter > .bottom { bottom: 0; }
+  .tv-shutter > .left, .tv-shutter > .right { top: 0; bottom: 0; width: 0; }
+  .tv-shutter > .left { left: 0; }
+  .tv-shutter > .right { right: 0; }
+  .is-open .tv-shutter > .top,
+  .is-open .tv-shutter > .bottom { animation: tv-shutter-v .8s linear forwards; }
+  .is-open .tv-shutter > .left,
+  .is-open .tv-shutter > .right { animation: tv-shutter-h .8s linear forwards; }
+}
+@keyframes tv-shutter-v {
+  0%, 24% { height: 0%; animation-timing-function: cubic-bezier(.7, 0, 1, 1); }
+  40%, 70% { height: calc(50% - 1px); }
+  70% { animation-timing-function: cubic-bezier(.2, 0, 0, 1); }
+  84%, 100% { height: 0%; }
+}
+@keyframes tv-shutter-h {
+  0%, 40% { width: 0%; }
+  40% { animation-timing-function: ease-in; }
+  52%, 62% { width: 50%; }
+  62% { animation-timing-function: cubic-bezier(.2, 0, 0, 1); }
+  70%, 100% { width: 0%; }
+}
+@keyframes tv-prev-reduced {
+  0%, 24% { opacity: 1; filter: brightness(1); }
+  40%, 61.99% { opacity: 1; filter: brightness(5); }
+  62%, 100% { opacity: 0; filter: brightness(5); }
+}
+@keyframes tv-next-reduced {
+  0%, 61.99% { opacity: 0; filter: brightness(5); }
+  62%, 70% { opacity: 1; filter: brightness(5); }
+  84% { opacity: 1; filter: brightness(1.4); }
+  100% { opacity: 1; filter: brightness(1); }
 }`
     }
   },
