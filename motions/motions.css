@@ -36,6 +36,19 @@
 .screen.a { background: var(--demo-surface); }
 .screen.b { background: var(--demo-media); }
 .screen.b .hero { height: 140px; border-radius: 16px; background: rgba(255,255,255,.2); }
+/* 画面遷移: ブラウン管のプツン（画面の後ろの黒と、上に重ねるノイズの帯） */
+.tv-off { position: absolute; inset: 0; background: #000; }
+.tv-noise { position: absolute; inset: 0; z-index: 1; pointer-events: none; opacity: 0; overflow: hidden; }
+.tv-band {
+  position: absolute; left: -10%; right: -10%;
+  background: repeating-linear-gradient(90deg, rgba(255,255,255,.85) 0 2px, rgba(0,0,0,.5) 2px 5px);
+  mix-blend-mode: screen;
+}
+/* 画面遷移: グリッドのパタパタ（タイルの層は再生中だけ見せる） */
+.flip-grid { position: absolute; inset: 0; z-index: 1; display: grid; grid-auto-rows: 1fr; opacity: 0; pointer-events: none; }
+.flip-tile { position: relative; transform-style: preserve-3d; }
+.flip-face { position: absolute; inset: 0; overflow: hidden; backface-visibility: hidden; }
+.flip-face.back { transform: rotateY(180deg); }
 
 .flow { position: absolute; inset: 0; display: grid; grid-template-rows: 1fr auto auto; }
 .flow-media { background: var(--demo-media); }
