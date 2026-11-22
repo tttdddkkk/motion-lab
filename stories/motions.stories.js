@@ -395,6 +395,11 @@ function story(id) {
 export const PressBounce = story('press-bounce');
 export const Ripple = story('ripple');
 export const CircleReveal = story('circle-reveal');
+export const SlidePush = story('slide-push');
+export const SheetRise = story('sheet-rise');
+export const Wipe = story('wipe');
+export const ZoomFade = story('zoom-fade');
+export const CrossFade = story('cross-fade');
 export const FlowSeek = story('flow-seek');
 export const FlowSeekVertical = story('flow-seek-vertical');
 export const ChatPop = story('chat-pop');
