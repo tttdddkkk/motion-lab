@@ -610,8 +610,8 @@ dots.forEach((dot, i) => {
     desc: 'ボタンが丸く縮んで回転する輪に変わり、チェックが弾んで出たあと、元のボタンに戻る。',
     setup: (stage, ctx) => buttonDemo(stage, ctx, {
       html: `<button class="demo-btn submit-btn">
-        <span class="sm-text sm-label">送信する</span><span class="sm-text sm-sending">送信中…</span><span class="sm-text sm-done">完了 ✓</span>
-        <span class="sm-spinner"></span><span class="sm-check">✓</span>
+        <span class="sm-text sm-label">送信する</span><span class="sm-text sm-sending" aria-hidden="true">送信中…</span><span class="sm-text sm-done" aria-hidden="true">完了 ✓</span>
+        <span class="sm-spinner" aria-hidden="true"></span><span class="sm-check" aria-hidden="true">✓</span>
       </button>`,
       play: ({ btn, a }) => {
         // ボタンの幅と高さ（縮小表示の影響を受けない offsetWidth / offsetHeight）。高さと同じ幅の丸に縮める
@@ -657,7 +657,9 @@ dots.forEach((dot, i) => {
     }),
     code: {
       css: `/* 中身は1つのマスに重ねる（.sm-label / .sm-spinner / .sm-check）。
-   幅は JS で測って --w（元の幅）と --h（高さ）に入れる */
+   幅は JS で測って --w（元の幅）と --h（高さ）に入れる。
+   飾り（.sm-spinner / .sm-check）と、ふだん見えていない文字（.sm-sending / .sm-done）には
+   aria-hidden="true" を付け、スクリーンリーダーに続けて読まれないようにする */
 .btn { display: inline-grid; box-sizing: border-box; overflow: hidden; white-space: nowrap; }
 .btn > * { grid-area: 1 / 1; place-self: center; }
 .sm-spinner {
