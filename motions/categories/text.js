@@ -409,4 +409,244 @@ if (widest > room) text.style.fontSize = Math.floor(52 * room / widest) + 'px';`
 @keyframes fade-in  { from { opacity: 0; } to { opacity: 1; } }`
     }
   },
+
+  {
+    id: 'countdown-flip',
+    cat: 'text',
+    name: '開演カウントダウン',
+    feel: '期待・高まり',
+    use: '開演・開始・販売開始までの残り時間',
+    ms: 400,
+    msLabel: '1桁の切り替え',
+    easing: 'cubic-bezier(.2, 0, 0, 1)',
+    desc: '残り時間が1秒ごとに減り、変わった桁だけが、古い数字は上へ抜け、新しい数字が下から入れ替わる。変わらない桁は止まったままなので、どこが進んだかが目で追える。デモは 01:02 から 00:58 まで（1:00 → 0:59 で3桁が同時に変わる）。時間は1桁が入れ替わる長さ。',
+    setup(stage, ctx) {
+      const STEP = 1000, SWAP = 400, START = 62, END = 58;
+      const EASE = 'cubic-bezier(.2, 0, 0, 1)';
+      const fmt = sec => `${String(Math.floor(sec / 60)).padStart(2, '0')}:${String(sec % 60).padStart(2, '0')}`;
+      const spoken = sec => `${Math.floor(sec / 60)}分${sec % 60}秒`;
+      stage.innerHTML = `
+        <div class="tx-board tx-count-board">
+          <div class="tx-count">
+            <span class="tx-count-label">開演まで</span>
+            <span class="tx-count-time" role="timer"></span>
+          </div>
+          <div class="tx-row"></div><div class="tx-row"></div><div class="tx-row"></div>
+        </div>`;
+      const board = q(stage, '.tx-count-board');
+      const time = q(stage, '.tx-count-time');
+      let token = 0;
+
+      const reset = () => {
+        time.setAttribute('aria-label', `開演まで ${spoken(START)}`);
+        time.innerHTML = [...fmt(START)].map(ch => ch === ':'
+          ? '<span class="tx-colon" aria-hidden="true">:</span>'
+          : `<span class="tx-digit" aria-hidden="true"><span>${ch}</span></span>`).join('');
+      };
+
+      /* 1桁を入れ替える。古い数字は上へ抜け、新しい数字が下から入る */
+      const swap = (slot, ch) => {
+        const old = /** @type {HTMLElement} */ (slot.lastElementChild);
+        const next = document.createElement('span');
+        next.textContent = ch;
+        slot.append(next);
+        const reduced = ctx.reduced();
+        /** @type {KeyframeAnimationOptions} */
+        const opt = { duration: ctx.dur(reduced ? 200 : SWAP), easing: reduced ? 'linear' : EASE };
+        const out = old.animate(reduced
+          ? [{ opacity: 1 }, { opacity: 0 }]
+          : [{ transform: 'translateY(0)', opacity: 1 }, { transform: 'translateY(-100%)', opacity: 0 }], { ...opt, fill: 'forwards' });
+        const inn = next.animate(reduced
+          ? [{ opacity: 0 }, { opacity: 1 }]
+          : [{ transform: 'translateY(100%)', opacity: 0 }, { transform: 'translateY(0)', opacity: 1 }], { ...opt, fill: 'backwards' });
+        return Promise.all([settle(out), settle(inn)]).then(() => old.remove());
+      };
+
+      const run = async () => {
+        const my = ++token;
+        time.getAnimations({ subtree: true }).forEach(a => a.cancel());
+        reset();
+        /** @type {Promise<unknown>} */
+        let swaps = Promise.resolve();
+        for (let sec = START - 1; sec >= END; sec--) {
+          await ctx.wait(STEP);
+          if (my !== token || !board.isConnected) return;
+          const slots = [...time.querySelectorAll('.tx-digit')];
+          const chars = [...fmt(sec)].filter(ch => ch !== ':');
+          time.setAttribute('aria-label', `開演まで ${spoken(sec)}`);
+          // 変わった桁だけを動かす
+          swaps = Promise.all(slots.map((slot, i) => slot.lastElementChild?.textContent === chars[i] ? null : swap(slot, chars[i])));
+        }
+        await swaps;
+      };
+      reset();
+      return { run };
+    },
+    code: {
+      css: `/* 1桁ずつ枠に入れ、枠の外は隠す。古い数字と新しい数字は同じマスに重ねる */
+.digit { display: inline-grid; overflow: hidden; font-variant-numeric: tabular-nums; }
+.digit > span { grid-area: 1 / 1; }
+.digit .is-out { animation: digit-out .4s cubic-bezier(.2, 0, 0, 1) forwards; }
+.digit .is-in  { animation: digit-in  .4s cubic-bezier(.2, 0, 0, 1) backwards; }
+@keyframes digit-out {
+  from { transform: translateY(0);     opacity: 1; }
+  to   { transform: translateY(-100%); opacity: 0; }
+}
+@keyframes digit-in {
+  from { transform: translateY(100%); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+/* 1秒ごとに、値が変わった桁だけ新しい span（is-in）を足し、古い span に is-out を付ける。
+   読み上げは role="timer" の要素に aria-label で残り時間を持たせ、桁の span は aria-hidden にする */`,
+      waapi: `// 変わった桁（slot）だけ呼ぶ
+async function swap(slot, ch) {
+  const old = slot.lastElementChild;
+  const next = document.createElement('span');
+  next.textContent = ch;
+  slot.append(next);
+  const opt = { duration: 400, easing: 'cubic-bezier(.2, 0, 0, 1)' };
+  await Promise.all([
+    old.animate([{ transform: 'translateY(0)', opacity: 1 },
+                 { transform: 'translateY(-100%)', opacity: 0 }], { ...opt, fill: 'forwards' }).finished,
+    next.animate([{ transform: 'translateY(100%)', opacity: 0 },
+                  { transform: 'translateY(0)', opacity: 1 }], { ...opt, fill: 'backwards' }).finished,
+  ]);
+  old.remove();
+}`,
+      reduced: `@media (prefers-reduced-motion: reduce) {
+  /* 上下には動かさず、その場で不透明度だけで入れ替える */
+  .digit .is-out { animation: digit-fade-out .2s linear forwards; }
+  .digit .is-in  { animation: digit-fade-in  .2s linear backwards; }
+}
+@keyframes digit-fade-out { from { opacity: 1; } to { opacity: 0; } }
+@keyframes digit-fade-in  { from { opacity: 0; } to { opacity: 1; } }`
+    }
+  },
+
+  {
+    id: 'viewer-count',
+    cat: 'text',
+    name: '視聴者数の増減',
+    feel: '熱気・数値の動き',
+    use: '同時視聴者数・参加人数・応援数など、増減する数値',
+    ms: 600,
+    msLabel: '数値が追いつく',
+    easing: 'cubic-bezier(.2, 0, 0, 1)',
+    desc: '数値が新しい値まで数え上がる（下がる）。増えたときは数字が下から4px、減ったときは上から4px寄って止まり、隣に増減の差（+455 など）が浮かんで消える。数値は1.2秒ごとに更新される。時間は数値が新しい値に追いつく長さ。',
+    setup(stage, ctx) {
+      const TWEEN = 600, STEP = 1200, NUDGE = 4, DELTA = 900;
+      const EASE = 'cubic-bezier(.2, 0, 0, 1)';
+      const START = 12480;
+      const VALUES = [12935, 13410, 13102, 13560];
+      const fmt = n => n.toLocaleString('ja-JP');
+      stage.innerHTML = `
+        <div class="tx-board tx-viewers-board">
+          <div class="tx-viewers">
+            <span class="tx-viewers-label">視聴中</span>
+            <span class="tx-viewers-num" role="status"></span>
+            <span class="tx-viewers-unit">人</span>
+            <span class="tx-viewers-delta" aria-hidden="true"></span>
+          </div>
+          <div class="tx-row"></div><div class="tx-row"></div><div class="tx-row"></div>
+        </div>`;
+      const board = q(stage, '.tx-viewers-board');
+      const num = q(stage, '.tx-viewers-num');
+      const delta = q(stage, '.tx-viewers-delta');
+      num.textContent = fmt(START);
+      let token = 0;
+
+      // 数え上げのイージング（ease-out の3次）
+      const easeOut = t => 1 - Math.pow(1 - t, 3);
+      /* from から to まで、表示を数え上げる。再生し直されたら途中でやめる */
+      const tween = (from, to, my) => new Promise(resolve => {
+        const total = ctx.dur(TWEEN);
+        const t0 = performance.now();
+        const tick = now => {
+          if (my !== token || !board.isConnected) return resolve(undefined);
+          const t = Math.min((now - t0) / total, 1);
+          num.textContent = fmt(Math.round(from + (to - from) * easeOut(t)));
+          if (t < 1) requestAnimationFrame(tick); else resolve(undefined);
+        };
+        requestAnimationFrame(tick);
+      });
+
+      const update = (from, to, my) => {
+        const up = to > from;
+        const reduced = ctx.reduced();
+        delta.textContent = `${up ? '+' : '−'}${fmt(Math.abs(to - from))}`;
+        delta.classList.toggle('is-down', !up);
+        const shown = [settle(delta.animate(reduced
+          ? [{ opacity: 0 }, { opacity: 1, offset: .2 }, { opacity: 1, offset: .7 }, { opacity: 0 }]
+          : [{ opacity: 0, transform: `translateY(${up ? NUDGE : -NUDGE}px)` }, { opacity: 1, transform: 'translateY(0)', offset: .2 },
+             { opacity: 1, transform: 'translateY(0)', offset: .7 }, { opacity: 0, transform: `translateY(${up ? -NUDGE * 2 : NUDGE * 2}px)` }],
+          { duration: ctx.dur(DELTA), easing: 'linear', fill: 'both' }))];
+        if (reduced) {
+          // 動きを減らす: 数え上げず、すぐ新しい値にして、不透明度だけで変化を知らせる
+          num.textContent = fmt(to);
+          shown.push(settle(num.animate([{ opacity: .4 }, { opacity: 1 }], { duration: ctx.dur(200), easing: 'linear' })));
+        } else {
+          shown.push(settle(num.animate(
+            [{ transform: `translateY(${up ? NUDGE : -NUDGE}px)` }, { transform: 'translateY(0)' }],
+            { duration: ctx.dur(TWEEN), easing: EASE })));
+          shown.push(tween(from, to, my));
+        }
+        return Promise.all(shown);
+      };
+
+      const run = async () => {
+        const my = ++token;
+        board.getAnimations({ subtree: true }).forEach(a => a.cancel());
+        num.textContent = fmt(START);
+        let value = START;
+        for (const next of VALUES) {
+          const step = Promise.all([update(value, next, my), ctx.wait(STEP)]);
+          value = next;
+          await step;
+          if (my !== token || !board.isConnected) return;
+        }
+      };
+      return { run };
+    },
+    code: {
+      css: `/* 数値の書き換え（数え上げ）は JS で行う。CSS は寄って止まる動きと、差の表示だけ */
+.count { display: inline-block; font-variant-numeric: tabular-nums; }   /* 桁の幅をそろえ、数え上げ中に横に揺れない */
+.count.is-up   { animation: count-up   .6s cubic-bezier(.2, 0, 0, 1); }
+.count.is-down { animation: count-down .6s cubic-bezier(.2, 0, 0, 1); }
+@keyframes count-up   { from { transform: translateY(4px); }  to { transform: translateY(0); } }
+@keyframes count-down { from { transform: translateY(-4px); } to { transform: translateY(0); } }
+.delta { opacity: 0; animation: delta .9s linear both; }   /* 差（+455 など）。更新のたびに付け直す */
+@keyframes delta {
+  0%      { opacity: 0; transform: translateY(4px); }
+  20%, 70% { opacity: 1; transform: translateY(0); }
+  100%    { opacity: 0; transform: translateY(-8px); }
+}`,
+      waapi: `function countTo(el, from, to, duration = 600) {
+  const ease = t => 1 - Math.pow(1 - t, 3);   // ease-out
+  const up = to > from;
+  el.animate(
+    [{ transform: \`translateY(\${up ? 4 : -4}px)\` }, { transform: 'translateY(0)' }],
+    { duration, easing: 'cubic-bezier(.2, 0, 0, 1)' }
+  );
+  return new Promise(resolve => {
+    const t0 = performance.now();
+    const tick = now => {
+      const t = Math.min((now - t0) / duration, 1);
+      el.textContent = Math.round(from + (to - from) * ease(t)).toLocaleString('ja-JP');
+      t < 1 ? requestAnimationFrame(tick) : resolve();
+    };
+    requestAnimationFrame(tick);
+  });
+}`,
+      reduced: `@media (prefers-reduced-motion: reduce) {
+  /* 数え上げず、すぐ新しい値にする（JS 側で分岐）。寄る動きはやめ、不透明度だけで知らせる */
+  .count.is-up, .count.is-down { animation: count-flash .2s linear; }
+  .delta { animation-name: delta-fade; }
+}
+@keyframes count-flash { from { opacity: .4; } to { opacity: 1; } }
+@keyframes delta-fade {
+  0%, 100% { opacity: 0; }
+  20%, 70% { opacity: 1; }
+}`
+    }
+  },
 ];
