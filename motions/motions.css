@@ -29,6 +29,22 @@
   -webkit-tap-highlight-color: transparent; user-select: none;
 }
 .ripple { position: absolute; border-radius: 50%; background: #fff; pointer-events: none; opacity: 0; }
+/* ボタン: 沈み込み（キーの厚み）、キラッと光る（光の筋）、いいね（丸いボタン・ハート・粒）、送信 → 完了（中身を1つのマスに重ねる） */
+.btn-key { box-shadow: 0 6px 0 #3b5bb5; }
+.btn-shine {
+  position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(105deg, transparent 40%, rgba(255,255,255,.65) 50%, transparent 60%) no-repeat;
+  background-size: 250% 100%; background-position: 100% 0;
+}
+.btn-wrap { position: relative; display: grid; place-items: center; }
+.like-btn { width: 64px; height: 64px; padding: 0; border-radius: 50%; background: var(--demo-bubble); font-size: 28px; line-height: 1; }
+.like-heart { display: inline-block; color: #9097a3; }
+.burst-dot { position: absolute; left: 50%; top: 50%; width: 8px; height: 8px; margin: -4px; border-radius: 50%; pointer-events: none; opacity: 0; }
+.submit-btn { display: inline-grid; box-sizing: border-box; white-space: nowrap; }
+.submit-btn > * { grid-area: 1 / 1; place-self: center; }
+.sm-sending, .sm-done { opacity: 0; }
+.sm-spinner { width: 20px; height: 20px; box-sizing: border-box; border-radius: 50%; border: 3px solid rgba(11, 18, 32, .3); border-top-color: currentColor; opacity: 0; }
+.sm-check { font-size: 20px; opacity: 0; }
 .screen { position: absolute; inset: 0; padding: 56px 20px 20px; display: grid; align-content: start; gap: 12px; }
 .screen h3 { margin: 0 0 4px; font-size: 20px; }
 /* ダミー行（画面・通知・ティッカーで共通） */
