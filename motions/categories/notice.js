@@ -261,4 +261,76 @@ banner.remove();`,
 }`
     }
   },
+
+  {
+    id: 'live-dot',
+    cat: 'notice',
+    name: 'LIVE 表示の脈動',
+    feel: '緊張感・現在進行',
+    use: '配信中・開催中であることを示す印（状態が続くあいだ脈打つ）',
+    ms: 1600,
+    msLabel: '1周期',
+    easing: 'ease-in-out',
+    desc: '「LIVE」の札の赤い点が、ゆっくり明滅しながら、外側へ輪が広がって消える。状態が続くあいだ繰り返す（デモでは3周で止まる）。1回だけ注目を集める「リング波紋」と違い、「いまも続いている」ことを示す。時間は1周期の長さ。',
+    setup(stage, ctx) {
+      const PERIOD = 1600, CYCLES = 3;
+      const root = mountNoticeStage(stage, `
+          <div class="ntf-head">
+            <strong>ステージ配信</strong>
+            <span class="ntf-live"><span class="ntf-live-mark" aria-hidden="true"><span class="ntf-live-halo"></span><span class="ntf-live-dot"></span></span>LIVE</span>
+          </div>`);
+      const dot = q(root, '.ntf-live-dot');
+      const halo = q(root, '.ntf-live-halo');
+      let prev = [];
+
+      const run = async () => {
+        prev.forEach(a => a.cancel());
+        const reduced = ctx.reduced();
+        /** @type {KeyframeAnimationOptions} */
+        const opt = { duration: ctx.dur(PERIOD), easing: 'ease-in-out', iterations: CYCLES };
+        // 動きを減らす: 輪は広げず、点の明滅だけ（幅も浅くする）
+        prev = [dot.animate([{ opacity: 1 }, { opacity: reduced ? .5 : .35 }, { opacity: 1 }], opt)];
+        if (!reduced) {
+          prev.push(halo.animate(
+            [{ transform: 'scale(1)', opacity: .6 }, { transform: 'scale(2.4)', opacity: 0 }],
+            { ...opt, easing: 'cubic-bezier(.2, 0, 0, 1)' }));
+        }
+        await Promise.all(prev.map(settle));
+      };
+      return { run };
+    },
+    code: {
+      css: `.live-mark { position: relative; width: 8px; height: 8px; }
+.live-dot, .live-halo { position: absolute; inset: 0; border-radius: 50%; background: #ff4d4f; }
+.live-dot  { animation: live-blink 1.6s ease-in-out infinite; }
+.live-halo { animation: live-halo 1.6s cubic-bezier(.2, 0, 0, 1) infinite; }
+@keyframes live-blink {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: .35; }
+}
+@keyframes live-halo {
+  from { transform: scale(1);   opacity: .6; }
+  to   { transform: scale(2.4); opacity: 0; }
+}`,
+      waapi: `const opt = { duration: 1600, iterations: Infinity };
+dot.animate(
+  [{ opacity: 1 }, { opacity: .35 }, { opacity: 1 }],
+  { ...opt, easing: 'ease-in-out' }
+);
+halo.animate(
+  [{ transform: 'scale(1)', opacity: .6 }, { transform: 'scale(2.4)', opacity: 0 }],
+  { ...opt, easing: 'cubic-bezier(.2, 0, 0, 1)' }
+);
+// 配信が終わったら止める: dot.getAnimations().forEach(a => a.cancel())`,
+      reduced: `@media (prefers-reduced-motion: reduce) {
+  /* 輪は広げず、点の明滅だけを浅く残す */
+  .live-halo { animation: none; opacity: 0; }
+  .live-dot  { animation: live-blink-soft 1.6s ease-in-out infinite; }
+}
+@keyframes live-blink-soft {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: .5; }
+}`
+    }
+  },
 ];

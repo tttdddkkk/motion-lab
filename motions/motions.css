@@ -126,6 +126,11 @@
 .ntf-banner span { opacity: .8; }
 .ntf-head { position: absolute; top: 14px; left: 16px; right: 16px; display: flex; align-items: center; justify-content: space-between; color: var(--text); font-size: 16px; }
 .ntf-bell { position: relative; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; background: rgba(255,255,255,.1); color: var(--text); }
+/* 通知: LIVE 表示（点と、外へ広がる輪を重ねる） */
+.ntf-live { display: inline-flex; align-items: center; gap: 8px; padding: 4px 10px; border-radius: 6px; background: rgba(255,77,79,.16); color: #ff8a8c; font-size: 12px; font-weight: 800; letter-spacing: .08em; }
+.ntf-live-mark { position: relative; width: 8px; height: 8px; }
+.ntf-live-dot, .ntf-live-halo { position: absolute; inset: 0; border-radius: 50%; background: #ff4d4f; }
+.ntf-live-halo { opacity: 0; }
 .ntf-badge {
   position: absolute; top: -4px; right: -4px; min-width: 22px; height: 22px; box-sizing: border-box; padding: 0 6px;
   display: grid; place-items: center; border-radius: 11px; background: #ff5a5f; color: #fff; font-size: 12px; font-weight: 700;
@@ -259,3 +264,19 @@
 .tx-morph-text span { grid-area: 1 / 1; color: var(--text); font-weight: 800; letter-spacing: .04em; line-height: 1.3; white-space: nowrap; opacity: 0; }
 .tx-morph-text .tx-morph-a { opacity: 1; }
 .tx-morph-text.is-static { filter: none; }
+/* テキスト: 開演カウントダウン（変わった桁だけ入れ替える） */
+.tx-count, .tx-viewers { display: grid; justify-items: center; gap: 4px; padding: 20px 0 12px; color: var(--text); }
+.tx-count-label, .tx-viewers-label { color: var(--sub); font-size: 13px; letter-spacing: .1em; }
+.tx-count-time { display: flex; align-items: center; font-size: 56px; font-weight: 800; line-height: 1.15; font-variant-numeric: tabular-nums; }
+.tx-digit { display: inline-grid; overflow: hidden; }
+.tx-digit > span { grid-area: 1 / 1; }
+.tx-colon { padding: 0 2px; opacity: .6; }
+/* テキスト: 視聴者数の増減（数値・単位・差を1行に並べる） */
+.tx-viewers { grid-template-columns: auto auto; justify-content: center; align-items: baseline; column-gap: 6px; }
+.tx-viewers-label { grid-column: 1 / -1; }
+.tx-viewers-num { display: inline-block; font-size: 44px; font-weight: 800; line-height: 1.2; font-variant-numeric: tabular-nums; }
+.tx-viewers-unit { color: var(--sub); font-size: 16px; }
+.tx-viewers-delta { grid-column: 1 / -1; min-height: 20px; color: #4cc38a; font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; opacity: 0; }
+.tx-viewers-delta.is-down { color: var(--sub); }
+/* 読み上げ用（画面には出さない）。数え上げの途中の値は入れない */
+.tx-viewers-sr { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }

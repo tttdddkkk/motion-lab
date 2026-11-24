@@ -10,6 +10,11 @@ button { font: inherit; color: inherit; cursor: pointer; }
 /* sidebar */
 aside { border-right: 1px solid var(--line); padding: 20px 16px; background: var(--panel); }
 @media (max-width: 820px) { aside { border-right: 0; border-bottom: 1px solid var(--line); } }
+/* 広い画面: サイドバーを画面の高さに固定し、一覧はサイドバーの中でスクロールする（ADR 0025）。
+   ページを下へスクロールしても一覧が残り、一覧を下へ送ってもプレビューが動かない */
+@media (min-width: 821px) {
+  aside { position: sticky; top: 0; height: 100vh; overflow-y: auto; overscroll-behavior: contain; }
+}
 .brand { font-weight: 700; letter-spacing: .08em; margin: 0 0 16px; }
 .brand small { display: block; font-weight: 400; color: var(--sub); letter-spacing: 0; }
 .intro { margin: -8px 0 16px; color: var(--sub); font-size: 12px; line-height: 1.6; }

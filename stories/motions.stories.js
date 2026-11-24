@@ -302,6 +302,27 @@ const EXTRA_STEPS = {
     });
   },
 
+  'viewer-count': async ({ motion, stage, step }) => {
+    await step('視聴者数: 数え上げる表示は読み上げず、読み上げ用の要素には更新後の値だけが入る', async () => {
+      motion.setup(stage, fastCtx(false)).run().catch(() => {});
+      await frame();
+      await expect(stage.querySelector('.tx-viewers').getAttribute('aria-hidden')).toBe('true');
+      const status = stage.querySelector('[role="status"]');
+      const num = stage.querySelector('.tx-viewers-num');
+      const spoken = new Set(), shown = new Set();
+      const limit = performance.now() + 800;
+      while (performance.now() < limit) {
+        spoken.add(status.textContent);
+        shown.add(num.textContent);
+        await frame();
+      }
+      // 表示は途中の値を数え上げるが、読み上げ用は「視聴中 N人」の形の更新後の値だけ（数件）
+      await expect(shown.size).toBeGreaterThan(spoken.size + 3);
+      for (const text of spoken) await expect(text).toMatch(/^視聴中 [\d,]+人$/);
+      cancelAll(stage);
+    });
+  },
+
   'morph-text': async ({ motion, stage, step }) => {
     await step('モーフィング・通常: しきい値フィルターがかかり、ぼかしを使う', async () => {
       const spy = spyAnimate();
@@ -422,3 +443,6 @@ export const RingPulse = story('ring-pulse');
 export const ErrorShake = story('error-shake');
 export const LikeBurst = story('like-burst');
 export const SubmitMorph = story('submit-morph');
+export const LiveDot = story('live-dot');
+export const CountdownFlip = story('countdown-flip');
+export const ViewerCount = story('viewer-count');
