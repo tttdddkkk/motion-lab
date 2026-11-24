@@ -827,23 +827,32 @@ check.animate([
 }
 /* animationend で取り除く。同時に8個を超えたら、古いものから取り除く */`,
       waapi: `const LANES = [-12, 6, -4, 12, -8, 2];   // 重なりは判定せず、順番に使う
-const live = [];
+const live = [];   // 表示中の粒と、そのアニメーション
 let count = 0;
 button.addEventListener('click', () => {
-  if (live.length >= 8) live.shift().remove();   // 上限を超えたら古いものから消す
+  if (live.length >= 8) {   // 上限を超えたら古いものから、アニメーションも止めて消す
+    const old = live.shift();
+    old.anim.cancel();
+    old.dot.remove();
+  }
   const i = count++, x = LANES[i % LANES.length], s = i % 2 ? -12 : 12;
   const dot = document.createElement('span');
   dot.className = 'cheer-dot';
   dot.textContent = '♥';
   wrap.append(dot);
-  live.push(dot);
-  dot.animate([
+  const anim = dot.animate([
     { transform: \`translate(\${x}px, 0) scale(.6)\`, opacity: 0 },
     { transform: \`translate(\${x + s}px, -28px) scale(1)\`, opacity: 1, offset: .3 },
     { transform: \`translate(\${x - s / 2}px, -56px) scale(1)\`, opacity: 1, offset: .65 },
     { transform: \`translate(\${x}px, -80px) scale(.9)\`, opacity: 0 }
-  ], { duration: 1200, easing: 'cubic-bezier(.2, 0, .4, 1)' })
-    .finished.then(() => { dot.remove(); live.splice(live.indexOf(dot), 1); }, () => {});
+  ], { duration: 1200, easing: 'cubic-bezier(.2, 0, .4, 1)' });
+  const entry = { dot, anim };
+  live.push(entry);
+  anim.finished.then(() => {
+    dot.remove();
+    const at = live.indexOf(entry);
+    if (at >= 0) live.splice(at, 1);
+  }, () => {});   // 上限で止めた粒（cancel）は、ここでは何もしない
 });`,
       reduced: `@media (prefers-reduced-motion: reduce) {
   /* 昇らせず、ボタンの上の決まった位置（--x と、3段の高さ）に出して消す */
