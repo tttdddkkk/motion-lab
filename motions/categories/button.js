@@ -1,6 +1,6 @@
 /* モーション定義: ボタン。motions.js が集めて MOTIONS にする。追加したら stories/motions.stories.js にも1行足す */
 import { q } from '../dom.js';
-import { scaleOf } from '../runtime.js';
+import { scaleOf, settle } from '../runtime.js';
 
 /**
  * ボタンのデモに渡す道具。a はアニメーションを ctx の再生速度に合わせて作る（duration と delay を ms で渡す）。
@@ -726,6 +726,208 @@ check.animate([
 }
 @keyframes sm-sending { 0%, 10%, 60%, 100% { opacity: 0; } 18%, 55% { opacity: 1; } }
 @keyframes sm-done    { 0%, 60%, 90%, 100% { opacity: 0; } 68%, 85% { opacity: 1; } }`
+    }
+  },
+
+  {
+    id: 'cheer-rise',
+    cat: 'button',
+    name: '応援の連打（下から湧く）',
+    feel: '盛り上がり・連続',
+    use: '拍手・応援・ハートの連打（押すたびに1つ湧く）',
+    ms: 1200,
+    msLabel: '1粒が昇って消える',
+    easing: 'cubic-bezier(.2, 0, .4, 1)',
+    desc: '押すたびにボタンが小さく沈み、ハートが1つ、左右に揺れながら上へ昇って消える。連打しても前の粒は止めずに重ねる。同時に出す粒は8個までで、超えたら古いものから消す。横の出だし位置は事前に決めた6通りを順に使い、重なりは判定しない。デモでは150msおきに7回押す（ボタンを押しても湧く）。時間は1粒が昇って消える長さ。',
+    setup(stage, ctx) {
+      const RISE = 1200, TAP_GAP = 150, TAPS = 7, MAX = 8, HEIGHT = 80, SWAY = 12;
+      const LANES = [-12, 6, -4, 12, -8, 2];   // 横の出だし位置（px）。重なりを判定せず、順番に使う
+      const COLORS = ['#ff6b8b', '#ffd166', '#6ea8ff'];
+      const EASE = 'cubic-bezier(.2, 0, .4, 1)';
+      stage.innerHTML = '<div class="btn-wrap cheer-wrap"><button class="demo-btn cheer-btn" aria-label="応援する"><span aria-hidden="true">♥</span></button></div>';
+      const wrap = q(stage, '.cheer-wrap');
+      const btn = q(stage, '.cheer-btn');
+      /** @type {{ el: HTMLElement, anim: Animation }[]} */
+      let live = [];
+      let count = 0;
+      let token = 0;
+
+      /* 1回押す: ボタンが沈み、粒が1つ湧く。粒が消えたら解決する */
+      const tap = () => {
+        const reduced = ctx.reduced();
+        btn.animate(reduced
+          ? [{ filter: 'brightness(1.3)' }, { filter: 'brightness(1)' }]
+          : [{ transform: 'scale(.92)' }, { transform: 'scale(1)' }],
+          { duration: ctx.dur(200), easing: 'cubic-bezier(.2, 0, 0, 1)' });
+        if (live.length >= MAX) {   // 上限を超えたら、古い粒から消す
+          const old = /** @type {{ el: HTMLElement, anim: Animation }} */ (live.shift());
+          old.anim.cancel();
+          old.el.remove();
+        }
+        const i = count++;
+        const x = LANES[i % LANES.length];
+        const dir = i % 2 ? -1 : 1;
+        const el = document.createElement('span');
+        el.className = 'cheer-dot';
+        el.textContent = '♥';
+        el.style.color = COLORS[i % COLORS.length];
+        wrap.append(el);
+        let anim;
+        if (reduced) {
+          // 動きを減らす: 昇らせず、ボタンの上の決まった位置に出して消す
+          Object.assign(el.style, { left: `calc(50% + ${x}px)`, top: `${-24 - (i % 3) * 18}px` });
+          anim = el.animate([{ opacity: 0 }, { opacity: 1, offset: .2 }, { opacity: 1, offset: .6 }, { opacity: 0 }],
+            { duration: ctx.dur(RISE), easing: 'linear' });
+        } else {
+          anim = el.animate([
+            { transform: `translate(${x}px, 0) scale(.6)`, opacity: 0 },
+            { transform: `translate(${x + SWAY * dir}px, ${-HEIGHT * .35}px) scale(1)`, opacity: 1, offset: .3 },
+            { transform: `translate(${x - SWAY * dir * .5}px, ${-HEIGHT * .7}px) scale(1)`, opacity: 1, offset: .65 },
+            { transform: `translate(${x}px, ${-HEIGHT}px) scale(.9)`, opacity: 0 },
+          ], { duration: ctx.dur(RISE), easing: EASE });
+        }
+        const entry = { el, anim };
+        live.push(entry);
+        return settle(anim).then(() => {
+          el.remove();
+          live = live.filter(e => e !== entry);
+        });
+      };
+
+      const run = async () => {
+        const my = ++token;
+        live.forEach(e => { e.anim.cancel(); e.el.remove(); });
+        live = [];
+        count = 0;
+        const done = [];
+        for (let t = 0; t < TAPS; t++) {
+          if (my !== token || !wrap.isConnected) return;
+          done.push(tap());
+          await ctx.wait(TAP_GAP);
+        }
+        await Promise.all(done);
+      };
+      // 押すたびに1つ足す（前の粒は止めない）
+      btn.addEventListener('click', () => { tap(); });
+      return { run };
+    },
+    code: {
+      css: `/* 粒は押すたびに JS で1つ作り、.cheer-wrap（ボタンを包む要素）の上端の中央に置く。
+   --x: 横の出だし位置（事前に決めた数通りを順に使う）、--sway: 揺れ幅（左右交互に ±12px） */
+.cheer-dot {
+  position: absolute; left: 50%; top: 0; margin-left: -8px;
+  pointer-events: none;
+  animation: cheer-rise 1.2s cubic-bezier(.2, 0, .4, 1) forwards;
+}
+@keyframes cheer-rise {
+  0%   { transform: translate(var(--x), 0) scale(.6); opacity: 0; }
+  30%  { transform: translate(calc(var(--x) + var(--sway)), -28px) scale(1); opacity: 1; }
+  65%  { transform: translate(calc(var(--x) - var(--sway) / 2), -56px) scale(1); opacity: 1; }
+  100% { transform: translate(var(--x), -80px) scale(.9); opacity: 0; }
+}
+/* animationend で取り除く。同時に8個を超えたら、古いものから取り除く */`,
+      waapi: `const LANES = [-12, 6, -4, 12, -8, 2];   // 重なりは判定せず、順番に使う
+const live = [];
+let count = 0;
+button.addEventListener('click', () => {
+  if (live.length >= 8) live.shift().remove();   // 上限を超えたら古いものから消す
+  const i = count++, x = LANES[i % LANES.length], s = i % 2 ? -12 : 12;
+  const dot = document.createElement('span');
+  dot.className = 'cheer-dot';
+  dot.textContent = '♥';
+  wrap.append(dot);
+  live.push(dot);
+  dot.animate([
+    { transform: \`translate(\${x}px, 0) scale(.6)\`, opacity: 0 },
+    { transform: \`translate(\${x + s}px, -28px) scale(1)\`, opacity: 1, offset: .3 },
+    { transform: \`translate(\${x - s / 2}px, -56px) scale(1)\`, opacity: 1, offset: .65 },
+    { transform: \`translate(\${x}px, -80px) scale(.9)\`, opacity: 0 }
+  ], { duration: 1200, easing: 'cubic-bezier(.2, 0, .4, 1)' })
+    .finished.then(() => { dot.remove(); live.splice(live.indexOf(dot), 1); }, () => {});
+});`,
+      reduced: `@media (prefers-reduced-motion: reduce) {
+  /* 昇らせず、ボタンの上の決まった位置（--x と、3段の高さ）に出して消す */
+  .cheer-dot { left: calc(50% + var(--x)); top: var(--y); animation: cheer-fade 1.2s linear forwards; }
+}
+@keyframes cheer-fade {
+  0%, 100% { opacity: 0; }
+  20%, 60% { opacity: 1; }
+}`
+    }
+  },
+
+  {
+    id: 'ticket-tear',
+    cat: 'button',
+    name: 'チケットのもぎり',
+    feel: '達成・手触り',
+    use: '入場・チェックイン・購入の完了',
+    ms: 900,
+    msLabel: '切れて半券が落ちるまで',
+    easing: 'cubic-bezier(.2, 0, 0, 1) → cubic-bezier(.4, 0, 1, 1)',
+    desc: 'チケットを押すと、ミシン目で本体と半券がわずかに離れ、半券が傾きながら下へ落ちて消える。本体には「入場済み」の印が押される。離れるまでは速く出て止まり、落ちるところは重力のように加速する。時間は切れてから半券が落ちきるまでの長さ。',
+    setup: (stage, ctx) => buttonDemo(stage, ctx, {
+      html: `<button class="demo-btn tk" aria-label="チケットをもぎる">
+          <span class="tk-main"><small>OPEN 18:00</small><strong>A列 12番</strong><span class="tk-stamp" aria-hidden="true">入場済み</span></span>
+          <span class="tk-stub"><small>半券</small></span>
+        </button>`,
+      play: ({ btn, a }) => [
+        a(q(btn, '.tk-main'), [{ transform: 'translateX(0)' }, { transform: 'translateX(-6px)' }],
+          500, { easing: 'cubic-bezier(.2, 0, 0, 1)', fill: 'forwards' }),
+        a(q(btn, '.tk-stub'), [
+          { transform: 'translate(0, 0) rotate(0deg)', opacity: 1, easing: 'cubic-bezier(.2, 0, 0, 1)' },
+          { transform: 'translate(6px, 0) rotate(0deg)', opacity: 1, offset: .55, easing: 'cubic-bezier(.4, 0, 1, 1)' },
+          { transform: 'translate(14px, 70px) rotate(14deg)', opacity: 0 },
+        ], 900, { fill: 'forwards' }),
+        a(q(btn, '.tk-stamp'), [
+          { transform: 'rotate(-12deg) scale(1.4)', opacity: 0 },
+          { transform: 'rotate(-12deg) scale(1)', opacity: 1 },
+        ], 300, { delay: 700, easing: 'cubic-bezier(.2, 0, 0, 1)', fill: 'both' }),
+      ],
+      // 離れたり落ちたりせず、半券は薄れて消え、印は不透明度だけで現れる
+      reduced: ({ btn, a }) => [
+        a(q(btn, '.tk-stub'), [{ opacity: 1 }, { opacity: 0 }], 500, { easing: 'linear', fill: 'forwards' }),
+        a(q(btn, '.tk-stamp'), [{ opacity: 0 }, { opacity: 1 }], 300, { delay: 400, easing: 'linear', fill: 'both' }),
+      ],
+    }),
+    code: {
+      css: `/* 本体と半券を横に並べ、半券の左端をミシン目（破線）にする。印（.stamp）は本体に重ねる */
+.ticket { display: flex; overflow: visible; }
+.stamp { opacity: 0; transform: rotate(-12deg); }
+.ticket.is-torn .main  { animation: tk-main .5s cubic-bezier(.2, 0, 0, 1) forwards; }
+.ticket.is-torn .stub  { animation: tk-stub .9s forwards; }
+.ticket.is-torn .stamp { animation: tk-stamp .3s cubic-bezier(.2, 0, 0, 1) .7s both; }
+@keyframes tk-main { to { transform: translateX(-6px); } }
+@keyframes tk-stub {
+  0%   { transform: translate(0, 0) rotate(0); animation-timing-function: cubic-bezier(.2, 0, 0, 1); }
+  55%  { transform: translate(6px, 0) rotate(0); opacity: 1; animation-timing-function: cubic-bezier(.4, 0, 1, 1); }
+  100% { transform: translate(14px, 70px) rotate(14deg); opacity: 0; }
+}
+@keyframes tk-stamp {
+  from { transform: rotate(-12deg) scale(1.4); opacity: 0; }
+  to   { transform: rotate(-12deg) scale(1);   opacity: 1; }
+}`,
+      waapi: `main.animate(
+  [{ transform: 'translateX(0)' }, { transform: 'translateX(-6px)' }],
+  { duration: 500, easing: 'cubic-bezier(.2, 0, 0, 1)', fill: 'forwards' }
+);
+stub.animate([
+  { transform: 'translate(0, 0) rotate(0deg)', opacity: 1, easing: 'cubic-bezier(.2, 0, 0, 1)' },
+  { transform: 'translate(6px, 0) rotate(0deg)', opacity: 1, offset: .55, easing: 'cubic-bezier(.4, 0, 1, 1)' },
+  { transform: 'translate(14px, 70px) rotate(14deg)', opacity: 0 }
+], { duration: 900, fill: 'forwards' });
+stamp.animate([
+  { transform: 'rotate(-12deg) scale(1.4)', opacity: 0 },
+  { transform: 'rotate(-12deg) scale(1)', opacity: 1 }
+], { duration: 300, delay: 700, easing: 'cubic-bezier(.2, 0, 0, 1)', fill: 'both' });`,
+      reduced: `@media (prefers-reduced-motion: reduce) {
+  /* 離れたり落ちたりせず、半券は薄れて消え、印は不透明度だけで現れる */
+  .ticket.is-torn .main  { animation: none; }
+  .ticket.is-torn .stub  { animation: tk-fade-out .5s linear forwards; }
+  .ticket.is-torn .stamp { animation: tk-fade-in .3s linear .4s both; }
+}
+@keyframes tk-fade-out { from { opacity: 1; } to { opacity: 0; } }
+@keyframes tk-fade-in  { from { opacity: 0; } to { opacity: 1; } }`
     }
   },
 ];

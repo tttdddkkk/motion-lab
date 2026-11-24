@@ -303,6 +303,38 @@ const SWEEP_FROM_RIGHT = { image: 'linear-gradient(to right, transparent 40%, #0
 const SWEEP_FROM_BOTTOM = { image: 'linear-gradient(to bottom, transparent 40%, #000 60%)', size: ['100% 250%', '100% 250%'], position: ['0% 0%', '0% 100%'] };
 
 /* 動きを減らす版は、各モーションの setup で reduced として渡す（なければ不透明度だけで入る） */
+/* ---- 開演の暗転（stage-dim）の部品 ---- */
+
+const DIM = { dark: 800, hold: 300, light: 600 };
+const DIM_MS = DIM.dark + DIM.hold + DIM.light;
+const DIM_SWITCH = (DIM.dark + DIM.hold) / DIM_MS;   // 画面が入れ替わる位置（keyframe の offset）
+
+/**
+ * 暗転: 幕が下りて暗くなり、止まったあいだに画面を入れ替え、幕が上がって明るくなる。
+ * zoom が true なら、明るくなるとき次の画面がわずかに寄ってから落ち着く（動きを減らす版は false）
+ * @param {boolean} zoom
+ * @returns {TransitionBuild}
+ */
+const buildStageDim = zoom => ({ stage, prev, next }) => {
+  // 幕は1枚を、通常版と動きを減らす版で共有する
+  const curtain = stage.querySelector('.dim-curtain') ?? stage.appendChild(Object.assign(document.createElement('div'), { className: 'dim-curtain' }));
+  return options => [
+    curtain.animate([
+      { opacity: 0, easing: 'cubic-bezier(.4, 0, 1, 1)' },
+      { opacity: 1, offset: DIM.dark / DIM_MS },
+      { opacity: 1, offset: DIM_SWITCH, easing: 'cubic-bezier(0, 0, .2, 1)' },
+      { opacity: 0 },
+    ], options),
+    prev.animate([{ opacity: 1 }, { opacity: 1, offset: DIM_SWITCH }, { opacity: 0, offset: DIM_SWITCH }, { opacity: 0 }], options),
+    next.animate(zoom ? [
+      { opacity: 0, transform: 'scale(1.04)' },
+      { opacity: 0, transform: 'scale(1.04)', offset: DIM_SWITCH },
+      { opacity: 1, transform: 'scale(1.04)', offset: DIM_SWITCH, easing: 'cubic-bezier(.2, 0, 0, 1)' },
+      { opacity: 1, transform: 'scale(1)' },
+    ] : [{ opacity: 0 }, { opacity: 0, offset: DIM_SWITCH }, { opacity: 1, offset: DIM_SWITCH }, { opacity: 1 }], options),
+  ];
+};
+
 /** @type {import('../types.js').Motion[]} */
 export const TRANSITION_MOTIONS = [
   {
@@ -847,6 +879,60 @@ noise.querySelectorAll('.tv-band').forEach((band, i) => {
     transition-delay: calc(var(--wave) * 45ms);
   }
   .is-open .flip-face.front { opacity: 0; }
+}`
+    }
+  },
+
+  {
+    id: 'stage-dim',
+    cat: 'transition',
+    name: '開演の暗転',
+    feel: '静寂→集中',
+    use: '待機画面から本編へ・幕間から再開など、区切りを強く見せる切り替え',
+    ms: DIM_MS,
+    msLabel: '暗転・止め・明転の合計',
+    easing: '暗転 cubic-bezier(.4, 0, 1, 1)・明転 cubic-bezier(0, 0, .2, 1)',
+    desc: '画面が0.8秒かけて暗くなり、真っ暗のまま0.3秒止まる。そのあいだに画面が入れ替わり、0.6秒かけて明るくなる。明るくなるとき、次の画面はわずかに寄った位置から落ち着く。照明が落ちてから幕が上がるような、ひと呼吸のある切り替え。時間は暗転・止め・明転の合計。',
+    setup: (stage, ctx) => screenTransition(stage, ctx, {
+      hidden: { opacity: '0' },
+      build: buildStageDim(true),
+      reduced: buildStageDim(false),   // 寄る動きをやめ、暗転と明転（不透明度）だけにする
+      ms: DIM_MS,
+      easing: 'linear',   // 区間ごとのイージングは keyframe に持たせる
+    }),
+    code: {
+      css: `/* 画面全体に黒い幕（.curtain）を重ね、暗転 → 止め → 明転を1つの animation にする。
+   入れ替えは、真っ暗のあいだ（47%〜64.7%。JS で animationstart から 800〜1100ms の間）に行う */
+.curtain {
+  position: absolute; inset: 0; background: #000; pointer-events: none; opacity: 0;
+}
+.curtain.is-playing { animation: stage-dim 1.7s linear; }
+@keyframes stage-dim {
+  0%     { opacity: 0; animation-timing-function: cubic-bezier(.4, 0, 1, 1); }
+  47%    { opacity: 1; }                                                       /* 0.8s: 暗くなりきる */
+  64.7%  { opacity: 1; animation-timing-function: cubic-bezier(0, 0, .2, 1); } /* 1.1s: 止めの終わり */
+  100%   { opacity: 0; }
+}
+.next.is-open { animation: dim-settle .6s cubic-bezier(.2, 0, 0, 1); }   /* 入れ替えと同時に付ける */
+@keyframes dim-settle { from { transform: scale(1.04); } to { transform: scale(1); } }`,
+      waapi: `const T = 1700, SWITCH = 1100 / T;   // 暗転 800 + 止め 300 + 明転 600
+const opt = { duration: T, fill: 'forwards' };
+curtain.animate([
+  { opacity: 0, easing: 'cubic-bezier(.4, 0, 1, 1)' },
+  { opacity: 1, offset: 800 / T },
+  { opacity: 1, offset: SWITCH, easing: 'cubic-bezier(0, 0, .2, 1)' },
+  { opacity: 0 }
+], opt);
+prev.animate([{ opacity: 1 }, { opacity: 1, offset: SWITCH }, { opacity: 0, offset: SWITCH }, { opacity: 0 }], opt);
+next.animate([
+  { opacity: 0, transform: 'scale(1.04)' },
+  { opacity: 0, transform: 'scale(1.04)', offset: SWITCH },
+  { opacity: 1, transform: 'scale(1.04)', offset: SWITCH, easing: 'cubic-bezier(.2, 0, 0, 1)' },
+  { opacity: 1, transform: 'scale(1)' }
+], opt);`,
+      reduced: `@media (prefers-reduced-motion: reduce) {
+  /* 寄る動きをやめ、暗転と明転（不透明度）だけにする */
+  .next.is-open { animation: none; }
 }`
     }
   },

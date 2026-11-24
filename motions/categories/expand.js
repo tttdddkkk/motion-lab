@@ -566,4 +566,112 @@ async function dismiss(picked) {
 @keyframes card-fade-in { from { opacity: 0; } to { opacity: 1; } }`
     }
   },
+
+  {
+    id: 'setlist-now',
+    cat: 'expand',
+    name: 'セットリストの現在曲',
+    feel: '追従・落ち着き',
+    use: 'セットリスト・登壇順・式次第など、進行に合わせて今の項目を開く一覧',
+    ms: 350,
+    msLabel: '次の項目へ移る',
+    easing: 'cubic-bezier(.2, 0, 0, 1)',
+    desc: '一覧の今の項目が明るくなって開き、補足（曲の説明など）が現れる。次へ進むと、前の項目は閉じて薄くなり、次の項目が開く。項目は1.2秒ごとに進む。「同期ハイライト」が文字の行を追うのに対し、こちらは項目単位で開閉する。時間は次の項目へ移る長さ。',
+    setup(stage, ctx) {
+      const STEP = 1200, MOVE = 350;
+      const EASE = 'cubic-bezier(.2, 0, 0, 1)';
+      const NOW_BG = 'rgba(110, 168, 255, .16)';
+      const SONGS = [
+        ['開幕のテーマ', 'インストゥルメンタル・2分40秒'],
+        ['まわる街', '新アレンジで披露'],
+        ['MC', '次の曲の紹介'],
+        ['ひかりの方へ', 'この日が初披露'],
+        ['アンコール', '会場と一緒に歌う'],
+      ];
+      stage.innerHTML = `
+        <div class="sl">
+          <p class="sl-head">本日のセットリスト</p>
+          <ol class="sl-list">${SONGS.map(([title, note], i) => `
+            <li class="sl-item"><span class="sl-no">${i + 1}</span><span class="sl-title">${title}</span>
+              <span class="sl-detail"><span class="sl-note">${note}</span></span></li>`).join('')}
+          </ol>
+        </div>`;
+      const items = qa(stage, '.sl-item');
+      const detailOf = (/** @type {HTMLElement} */ item) => q(item, '.sl-detail');
+      let token = 0;
+
+      /* i 番目を今の項目にする（前の項目は終わった状態に） */
+      const mark = (/** @type {number} */ now) => items.forEach((item, i) => {
+        item.classList.toggle('is-done', i < now);
+        item.classList.toggle('is-now', i === now);
+        if (i === now) item.setAttribute('aria-current', 'true'); else item.removeAttribute('aria-current');
+      });
+
+      /* 前の項目を閉じ、次の項目を開く。最終状態は class が持つので、アニメーションは途中だけ（fill なし） */
+      const advance = (/** @type {number} */ now) => {
+        const prev = items[now - 1], next = items[now];
+        const prevH = detailOf(prev).offsetHeight;
+        mark(now);
+        const nextH = detailOf(next).offsetHeight;
+        const reduced = ctx.reduced();
+        /** @type {KeyframeAnimationOptions} */
+        const opt = { duration: ctx.dur(reduced ? 200 : MOVE), easing: reduced ? 'linear' : EASE };
+        const anims = [
+          prev.animate([{ opacity: 1, backgroundColor: NOW_BG }, { opacity: .45, backgroundColor: 'transparent' }], opt),
+          next.animate([{ backgroundColor: 'transparent' }, { backgroundColor: NOW_BG }], opt),
+        ];
+        if (reduced) {
+          // 動きを減らす: 高さは一度に切り替え、補足は不透明度だけで現れる
+          anims.push(detailOf(next).animate([{ opacity: 0 }, { opacity: 1 }], opt));
+        } else {
+          anims.push(
+            detailOf(prev).animate([{ height: `${prevH}px`, opacity: 1 }, { height: '0px', opacity: 0 }], opt),
+            detailOf(next).animate([{ height: '0px', opacity: 0 }, { height: `${nextH}px`, opacity: 1 }], opt),
+          );
+        }
+        return Promise.all(anims.map(x => x.finished.catch(() => {})));
+      };
+
+      const run = async () => {
+        const my = ++token;
+        stage.getAnimations({ subtree: true }).forEach(x => x.cancel());
+        mark(0);
+        let last = Promise.resolve(/** @type {unknown} */ (undefined));
+        for (let i = 1; i < items.length; i++) {
+          await ctx.wait(STEP);
+          if (my !== token || !stage.isConnected) return;
+          last = advance(i);
+        }
+        await last;
+      };
+      mark(0);
+      return { run };
+    },
+    code: {
+      css: `/* 補足（.detail）は閉じているとき高さ 0。今の項目（.is-now）だけ開く。
+   高さ auto へは CSS で補間できないため、開閉の動きは WAAPI のタブを参照 */
+.item { border-radius: 10px; transition: background-color .35s cubic-bezier(.2, 0, 0, 1), opacity .35s cubic-bezier(.2, 0, 0, 1); }
+.item.is-now  { background-color: rgba(110, 168, 255, .16); }
+.item.is-done { opacity: .45; }
+.detail { display: block; height: 0; overflow: hidden; opacity: 0; }
+.item.is-now .detail { height: auto; opacity: 1; }`,
+      waapi: `// 前の項目を閉じ、次の項目を開く。最終状態はクラスに任せ、途中だけ動かす（fill なし）
+function advance(prev, next) {
+  const prevH = prev.querySelector('.detail').offsetHeight;
+  prev.classList.replace('is-now', 'is-done');
+  next.classList.add('is-now');
+  const nextH = next.querySelector('.detail').offsetHeight;   // 開いた状態の高さを測る
+  const opt = { duration: 350, easing: 'cubic-bezier(.2, 0, 0, 1)' };
+  prev.querySelector('.detail').animate(
+    [{ height: prevH + 'px', opacity: 1 }, { height: '0px', opacity: 0 }], opt);
+  next.querySelector('.detail').animate(
+    [{ height: '0px', opacity: 0 }, { height: nextH + 'px', opacity: 1 }], opt);
+}`,
+      reduced: `@media (prefers-reduced-motion: reduce) {
+  /* 高さは一度に切り替え、補足は不透明度だけで現れる（JS 側で高さのアニメーションをやめる） */
+  .item.is-now .detail { animation: sl-fade .2s linear; }
+}
+@keyframes sl-fade { from { opacity: 0; } to { opacity: 1; } }`
+    }
+  },
 ];
