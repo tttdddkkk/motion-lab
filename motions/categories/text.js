@@ -541,18 +541,23 @@ async function swap(slot, ch) {
       const fmt = n => n.toLocaleString('ja-JP');
       stage.innerHTML = `
         <div class="tx-board tx-viewers-board">
-          <div class="tx-viewers">
+          <div class="tx-viewers" aria-hidden="true">
             <span class="tx-viewers-label">視聴中</span>
-            <span class="tx-viewers-num" role="status"></span>
+            <span class="tx-viewers-num"></span>
             <span class="tx-viewers-unit">人</span>
-            <span class="tx-viewers-delta" aria-hidden="true"></span>
+            <span class="tx-viewers-delta"></span>
           </div>
+          <span class="tx-viewers-sr" role="status"></span>
           <div class="tx-row"></div><div class="tx-row"></div><div class="tx-row"></div>
         </div>`;
       const board = q(stage, '.tx-viewers-board');
       const num = q(stage, '.tx-viewers-num');
       const delta = q(stage, '.tx-viewers-delta');
+      // 読み上げ用。数え上げの途中の値は入れず、更新ごとに最終の値だけを入れる（表示側は aria-hidden）
+      const spoken = q(stage, '.tx-viewers-sr');
+      const say = n => { spoken.textContent = `視聴中 ${fmt(n)}人`; };
       num.textContent = fmt(START);
+      say(START);
       let token = 0;
 
       // 数え上げのイージング（ease-out の3次）
@@ -573,6 +578,7 @@ async function swap(slot, ch) {
       const update = (from, to, my) => {
         const up = to > from;
         const reduced = ctx.reduced();
+        say(to);
         delta.textContent = `${up ? '+' : '−'}${fmt(Math.abs(to - from))}`;
         delta.classList.toggle('is-down', !up);
         const shown = [settle(delta.animate(reduced
@@ -597,6 +603,7 @@ async function swap(slot, ch) {
         const my = ++token;
         board.getAnimations({ subtree: true }).forEach(a => a.cancel());
         num.textContent = fmt(START);
+        say(START);
         let value = START;
         for (const next of VALUES) {
           const step = Promise.all([update(value, next, my), ctx.wait(STEP)]);
@@ -608,7 +615,9 @@ async function swap(slot, ch) {
       return { run };
     },
     code: {
-      css: `/* 数値の書き換え（数え上げ）は JS で行う。CSS は寄って止まる動きと、差の表示だけ */
+      css: `/* 数値の書き換え（数え上げ）は JS で行う。CSS は寄って止まる動きと、差の表示だけ。
+   読み上げ: 数え上げる表示は aria-hidden="true" にし、別の role="status" の要素（視覚的に隠す）に
+   最終の値だけを入れる。表示を role="status" にすると、途中の値まで次々と読み上げられる */
 .count { display: inline-block; font-variant-numeric: tabular-nums; }   /* 桁の幅をそろえ、数え上げ中に横に揺れない */
 .count.is-up   { animation: count-up   .6s cubic-bezier(.2, 0, 0, 1); }
 .count.is-down { animation: count-down .6s cubic-bezier(.2, 0, 0, 1); }
@@ -620,7 +629,8 @@ async function swap(slot, ch) {
   20%, 70% { opacity: 1; transform: translateY(0); }
   100%    { opacity: 0; transform: translateY(-8px); }
 }`,
-      waapi: `function countTo(el, from, to, duration = 600) {
+      waapi: `// el は aria-hidden="true" の表示用。読み上げ用の要素には、呼ぶ前に最終の値（to）だけを入れておく
+function countTo(el, from, to, duration = 600) {
   const ease = t => 1 - Math.pow(1 - t, 3);   // ease-out
   const up = to > from;
   el.animate(

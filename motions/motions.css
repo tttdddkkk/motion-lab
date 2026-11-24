@@ -278,3 +278,5 @@
 .tx-viewers-unit { color: var(--sub); font-size: 16px; }
 .tx-viewers-delta { grid-column: 1 / -1; min-height: 20px; color: #4cc38a; font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; opacity: 0; }
 .tx-viewers-delta.is-down { color: var(--sub); }
+/* 読み上げ用（画面には出さない）。数え上げの途中の値は入れない */
+.tx-viewers-sr { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
