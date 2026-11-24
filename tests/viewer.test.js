@@ -223,6 +223,31 @@ describe('ビューア', { timeout: 30000 }, () => {
     expect(errors).toEqual([]);
   });
 
+  test('広い画面: サイドバーは画面の高さに収まり、中だけをスクロールできる。ページを送っても残る', async () => {
+    const { page, errors } = await openViewer();
+    const aside = page.locator('aside');
+    const size = await aside.evaluate(el => ({ scroll: el.scrollHeight, client: el.clientHeight }));
+    expect(size.client).toBeLessThanOrEqual(DESKTOP.height);
+    expect(size.scroll).toBeGreaterThan(size.client);   // 一覧が画面より長い（デモの前提）
+    // サイドバーの中を一番下まで送る。ページ自体は動かず、プレビューは元の位置のまま
+    const stageBefore = await page.locator('#stage').boundingBox();
+    await aside.hover();
+    await page.mouse.wheel(0, 5000);
+    await expect.poll(() => aside.evaluate(el => el.scrollTop)).toBeGreaterThan(0);
+    await expect(page.evaluate(() => scrollY)).resolves.toBe(0);
+    expect(await page.locator('#stage').boundingBox()).toEqual(stageBefore);
+    // 最後のモーションが画面内に見えて、選べる
+    const lastBox = await page.locator('#list button').last().boundingBox();
+    expect(lastBox && lastBox.y + lastBox.height).toBeLessThanOrEqual(DESKTOP.height);
+    await page.locator('#list button').last().click();
+    await expectSelected(page, MOTIONS[MOTIONS.length - 1]);
+    // ページを下へ送っても、サイドバーは画面の上端に残る
+    await page.evaluate(() => scrollTo(0, document.documentElement.scrollHeight));
+    const asideBox = await aside.boundingBox();
+    expect(Math.abs(asideBox?.y ?? 99)).toBeLessThan(1);
+    expect(errors).toEqual([]);
+  });
+
   test('スマホ幅: 一覧を下までスクロールしても、プレビューが画面内に残り、選ぶとすぐ切り替わる', async () => {
     const { page, errors } = await openViewer('', PHONE);
     const last = MOTIONS[MOTIONS.length - 1];
