@@ -323,6 +323,34 @@ const EXTRA_STEPS = {
     });
   },
 
+  'cheer-rise': async ({ motion, stage, step }) => {
+    for (const reduced of [false, true]) {
+      await step(`応援の連打${reduced ? '・動きを減らす' : ''}: 素早く連打しても、同時に出る粒は8個まで`, async () => {
+        motion.setup(stage, fastCtx(reduced));
+        await frame();
+        const button = stage.querySelector('button.demo-btn');
+        for (let i = 0; i < 20; i++) button.click();
+        await expect(stage.querySelectorAll('.cheer-dot').length).toBe(8);
+        await until(() => stage.querySelectorAll('.cheer-dot').length === 0, '粒が消えきる');
+        cancelAll(stage);
+      });
+    }
+  },
+
+  'setlist-now': async ({ motion, stage, step }) => {
+    await step('セットリスト: 今の項目は常に1つで、補足が開いているのもその項目だけ', async () => {
+      motion.setup(stage, fastCtx(false)).run().catch(() => {});
+      for (let t = 0; t < 6; t++) {
+        await new Promise(r => setTimeout(r, 250));
+        const now = [...stage.querySelectorAll('.sl-item[aria-current="true"]')];
+        await expect(now).toHaveLength(1);
+        const open = [...stage.querySelectorAll('.sl-detail')].filter(d => getComputedStyle(d).height !== '0px' && d.getAnimations().length === 0);
+        for (const d of open) await expect(d.closest('.sl-item')).toBe(now[0]);
+      }
+      cancelAll(stage);
+    });
+  },
+
   'morph-text': async ({ motion, stage, step }) => {
     await step('モーフィング・通常: しきい値フィルターがかかり、ぼかしを使う', async () => {
       const spy = spyAnimate();
@@ -446,3 +474,7 @@ export const SubmitMorph = story('submit-morph');
 export const LiveDot = story('live-dot');
 export const CountdownFlip = story('countdown-flip');
 export const ViewerCount = story('viewer-count');
+export const CheerRise = story('cheer-rise');
+export const StageDim = story('stage-dim');
+export const SetlistNow = story('setlist-now');
+export const TicketTear = story('ticket-tear');

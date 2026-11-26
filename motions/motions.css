@@ -280,3 +280,29 @@
 .tx-viewers-delta.is-down { color: var(--sub); }
 /* 読み上げ用（画面には出さない）。数え上げの途中の値は入れない */
 .tx-viewers-sr { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+/* ボタン: 応援の連打（粒はボタンを包む要素の上端の中央から昇る） */
+.cheer-btn { width: 64px; height: 64px; padding: 0; border-radius: 50%; font-size: 26px; line-height: 1; }
+.cheer-dot { position: absolute; left: 50%; top: 0; width: 16px; margin-left: -8px; text-align: center; font-size: 16px; line-height: 16px; pointer-events: none; opacity: 0; }
+/* ボタン: チケットのもぎり（本体と半券を並べ、半券の左端をミシン目にする） */
+.demo-btn.tk { display: flex; overflow: visible; padding: 0; border-radius: 0; background: none; color: #2b2418; font-weight: 400; text-align: left; }
+.tk-main, .tk-stub { display: grid; align-content: center; gap: 2px; background: var(--paper); }
+.tk-main { position: relative; padding: 14px 60px 14px 18px; border-radius: 10px 0 0 10px; }   /* 右側は印を押す余白 */
+.tk-main small, .tk-stub small { font-size: 10px; letter-spacing: .1em; color: #8a7a5a; }
+.tk-main strong { font-size: 18px; }
+.tk-stub { padding: 14px 12px; border-left: 2px dashed #b9ad92; border-radius: 0 10px 10px 0; background: #e9dfc8; transform-origin: left top; }   /* 左上の角を支点に、下側からめくれる */
+.tk-stamp { position: absolute; right: 14px; top: 50%; width: 32px; height: 32px; margin-top: -16px; box-sizing: border-box; display: grid; place-items: center; border: 2px solid #d9485f; border-radius: 50%; color: #d9485f; font-size: 16px; font-weight: 800; line-height: 1; opacity: 0; transform: rotate(-12deg); }   /* 丸で囲んだ「済」 */
+/* 画面遷移: 開演の暗転（画面全体に重ねる黒い幕） */
+.dim-curtain { position: absolute; inset: 0; z-index: 2; background: #000; opacity: 0; pointer-events: none; }
+/* 展開: セットリストの現在曲（今の項目だけ補足が開く） */
+.sl { position: absolute; inset: 0; overflow: hidden; padding: 20px 16px; background: var(--demo-surface); color: var(--text); }
+.sl-head { margin: 0 0 10px; color: var(--sub); font-size: 12px; letter-spacing: .1em; }
+.sl-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; }
+.sl-item { display: grid; grid-template-columns: 20px 1fr; column-gap: 8px; padding: 8px 10px; border-radius: 10px; }
+.sl-no { color: var(--sub); font-variant-numeric: tabular-nums; }
+.sl-title { font-size: 15px; }
+.sl-detail { grid-column: 2; display: block; height: 0; overflow: hidden; opacity: 0; }
+.sl-note { display: block; padding-top: 4px; color: var(--sub); font-size: 12px; }
+.sl-item.is-now { background: rgba(110, 168, 255, .16); }
+.sl-item.is-now .sl-title { font-weight: 700; }
+.sl-item.is-now .sl-detail { height: auto; opacity: 1; }
+.sl-item.is-done { opacity: .45; }
