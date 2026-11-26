@@ -871,66 +871,72 @@ button.addEventListener('click', () => {
     name: 'チケットのもぎり',
     feel: '達成・手触り',
     use: '入場・チェックイン・購入の完了',
-    ms: 900,
-    msLabel: '切れて半券が落ちるまで',
+    ms: 800,
+    msLabel: '切れて半券が引き取られるまで',
     easing: 'cubic-bezier(.2, 0, 0, 1) → cubic-bezier(.4, 0, 1, 1)',
-    desc: 'チケットを押すと、ミシン目で本体と半券がわずかに離れ、半券が傾きながら下へ落ちて消える。本体には「入場済み」の印が押される。離れるまでは速く出て止まり、落ちるところは重力のように加速する。時間は切れてから半券が落ちきるまでの長さ。',
+    desc: 'チケットを押すと、半券がミシン目の下側からめくれるように切れ、係員の手に引き取られるように右上へ抜けて消える。本体は引っ張られた分だけわずかに動いて戻り、「入場済み」の印が押される。めくれるまでは速く出て止まり、引き取られるところは加速して去る。時間は切れてから半券が引き取られるまでの長さ。',
     setup: (stage, ctx) => buttonDemo(stage, ctx, {
       html: `<button class="demo-btn tk" aria-label="チケットをもぎる">
           <span class="tk-main"><small>OPEN 18:00</small><strong>A列 12番</strong><span class="tk-stamp" aria-hidden="true">入場済み</span></span>
           <span class="tk-stub"><small>半券</small></span>
         </button>`,
       play: ({ btn, a }) => [
-        a(q(btn, '.tk-main'), [{ transform: 'translateX(0)' }, { transform: 'translateX(-6px)' }],
-          500, { easing: 'cubic-bezier(.2, 0, 0, 1)', fill: 'forwards' }),
+        // 本体: 半券を引かれた分だけ、わずかに右へ引っ張られて戻る
+        a(q(btn, '.tk-main'), [
+          { transform: 'translateX(0)' }, { transform: 'translateX(3px)', offset: .3 }, { transform: 'translateX(0)' },
+        ], 500, { easing: 'cubic-bezier(.2, 0, 0, 1)' }),
+        // 半券: 左上の角を支点に下側からめくれ（ミシン目の下が開く）、右上へ引き取られて消える
         a(q(btn, '.tk-stub'), [
           { transform: 'translate(0, 0) rotate(0deg)', opacity: 1, easing: 'cubic-bezier(.2, 0, 0, 1)' },
-          { transform: 'translate(6px, 0) rotate(0deg)', opacity: 1, offset: .55, easing: 'cubic-bezier(.4, 0, 1, 1)' },
-          { transform: 'translate(14px, 70px) rotate(14deg)', opacity: 0 },
-        ], 900, { fill: 'forwards' }),
+          { transform: 'translate(2px, 0) rotate(-8deg)', opacity: 1, offset: .4, easing: 'cubic-bezier(.4, 0, 1, 1)' },
+          { transform: 'translate(44px, -14px) rotate(-8deg)', opacity: 0 },
+        ], 800, { fill: 'forwards' }),
         a(q(btn, '.tk-stamp'), [
           { transform: 'rotate(-12deg) scale(1.4)', opacity: 0 },
           { transform: 'rotate(-12deg) scale(1)', opacity: 1 },
-        ], 300, { delay: 700, easing: 'cubic-bezier(.2, 0, 0, 1)', fill: 'both' }),
+        ], 300, { delay: 600, easing: 'cubic-bezier(.2, 0, 0, 1)', fill: 'both' }),
       ],
-      // 離れたり落ちたりせず、半券は薄れて消え、印は不透明度だけで現れる
+      // めくれたり動いたりせず、半券は薄れて消え、印は不透明度だけで現れる
       reduced: ({ btn, a }) => [
         a(q(btn, '.tk-stub'), [{ opacity: 1 }, { opacity: 0 }], 500, { easing: 'linear', fill: 'forwards' }),
         a(q(btn, '.tk-stamp'), [{ opacity: 0 }, { opacity: 1 }], 300, { delay: 400, easing: 'linear', fill: 'both' }),
       ],
     }),
     code: {
-      css: `/* 本体と半券を横に並べ、半券の左端をミシン目（破線）にする。印（.stamp）は本体に重ねる */
+      css: `/* 本体と半券を横に並べ、半券の左端をミシン目（破線）にする。印（.stamp）は本体に重ねる。
+   半券は左上の角を支点に回す（下側からめくれて、ミシン目の下が開く） */
 .ticket { display: flex; overflow: visible; }
+.stub  { transform-origin: left top; }
 .stamp { opacity: 0; transform: rotate(-12deg); }
-.ticket.is-torn .main  { animation: tk-main .5s cubic-bezier(.2, 0, 0, 1) forwards; }
-.ticket.is-torn .stub  { animation: tk-stub .9s forwards; }
-.ticket.is-torn .stamp { animation: tk-stamp .3s cubic-bezier(.2, 0, 0, 1) .7s both; }
-@keyframes tk-main { to { transform: translateX(-6px); } }
-@keyframes tk-stub {
+.ticket.is-torn .main  { animation: tk-tug .5s cubic-bezier(.2, 0, 0, 1); }
+.ticket.is-torn .stub  { animation: tk-take .8s forwards; }
+.ticket.is-torn .stamp { animation: tk-stamp .3s cubic-bezier(.2, 0, 0, 1) .6s both; }
+@keyframes tk-tug { 30% { transform: translateX(3px); } }
+@keyframes tk-take {
   0%   { transform: translate(0, 0) rotate(0); animation-timing-function: cubic-bezier(.2, 0, 0, 1); }
-  55%  { transform: translate(6px, 0) rotate(0); opacity: 1; animation-timing-function: cubic-bezier(.4, 0, 1, 1); }
-  100% { transform: translate(14px, 70px) rotate(14deg); opacity: 0; }
+  40%  { transform: translate(2px, 0) rotate(-8deg); opacity: 1; animation-timing-function: cubic-bezier(.4, 0, 1, 1); }
+  100% { transform: translate(44px, -14px) rotate(-8deg); opacity: 0; }
 }
 @keyframes tk-stamp {
   from { transform: rotate(-12deg) scale(1.4); opacity: 0; }
   to   { transform: rotate(-12deg) scale(1);   opacity: 1; }
 }`,
-      waapi: `main.animate(
-  [{ transform: 'translateX(0)' }, { transform: 'translateX(-6px)' }],
-  { duration: 500, easing: 'cubic-bezier(.2, 0, 0, 1)', fill: 'forwards' }
+      waapi: `// 半券は CSS で transform-origin: left top にしておく
+main.animate(
+  [{ transform: 'translateX(0)' }, { transform: 'translateX(3px)', offset: .3 }, { transform: 'translateX(0)' }],
+  { duration: 500, easing: 'cubic-bezier(.2, 0, 0, 1)' }
 );
 stub.animate([
   { transform: 'translate(0, 0) rotate(0deg)', opacity: 1, easing: 'cubic-bezier(.2, 0, 0, 1)' },
-  { transform: 'translate(6px, 0) rotate(0deg)', opacity: 1, offset: .55, easing: 'cubic-bezier(.4, 0, 1, 1)' },
-  { transform: 'translate(14px, 70px) rotate(14deg)', opacity: 0 }
-], { duration: 900, fill: 'forwards' });
+  { transform: 'translate(2px, 0) rotate(-8deg)', opacity: 1, offset: .4, easing: 'cubic-bezier(.4, 0, 1, 1)' },
+  { transform: 'translate(44px, -14px) rotate(-8deg)', opacity: 0 }
+], { duration: 800, fill: 'forwards' });
 stamp.animate([
   { transform: 'rotate(-12deg) scale(1.4)', opacity: 0 },
   { transform: 'rotate(-12deg) scale(1)', opacity: 1 }
-], { duration: 300, delay: 700, easing: 'cubic-bezier(.2, 0, 0, 1)', fill: 'both' });`,
+], { duration: 300, delay: 600, easing: 'cubic-bezier(.2, 0, 0, 1)', fill: 'both' });`,
       reduced: `@media (prefers-reduced-motion: reduce) {
-  /* 離れたり落ちたりせず、半券は薄れて消え、印は不透明度だけで現れる */
+  /* めくれたり動いたりせず、半券は薄れて消え、印は不透明度だけで現れる */
   .ticket.is-torn .main  { animation: none; }
   .ticket.is-torn .stub  { animation: tk-fade-out .5s linear forwards; }
   .ticket.is-torn .stamp { animation: tk-fade-in .3s linear .4s both; }
