@@ -302,7 +302,6 @@ const SWEEP_FROM_RIGHT = { image: 'linear-gradient(to right, transparent 40%, #0
 /** @type {Sweep} */
 const SWEEP_FROM_BOTTOM = { image: 'linear-gradient(to bottom, transparent 40%, #000 60%)', size: ['100% 250%', '100% 250%'], position: ['0% 0%', '0% 100%'] };
 
-/* 動きを減らす版は、各モーションの setup で reduced として渡す（なければ不透明度だけで入る） */
 /* ---- 開演の暗転（stage-dim）の部品 ---- */
 
 const DIM = { dark: 800, hold: 300, light: 600 };
@@ -335,6 +334,7 @@ const buildStageDim = zoom => ({ stage, prev, next }) => {
   ];
 };
 
+/* 動きを減らす版は、各モーションの setup で reduced として渡す（なければ不透明度だけで入る） */
 /** @type {import('../types.js').Motion[]} */
 export const TRANSITION_MOTIONS = [
   {
