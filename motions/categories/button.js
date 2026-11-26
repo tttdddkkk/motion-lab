@@ -874,10 +874,10 @@ button.addEventListener('click', () => {
     ms: 800,
     msLabel: '切れて半券が引き取られるまで',
     easing: 'cubic-bezier(.2, 0, 0, 1) → cubic-bezier(.4, 0, 1, 1)',
-    desc: 'チケットを押すと、半券がミシン目の下側からめくれるように切れ、係員の手に引き取られるように右上へ抜けて消える。本体は引っ張られた分だけわずかに動いて戻り、「入場済み」の印が押される。めくれるまでは速く出て止まり、引き取られるところは加速して去る。時間は切れてから半券が引き取られるまでの長さ。',
+    desc: 'チケットを押すと、半券がミシン目の下側からめくれるように切れ、係員の手に引き取られるように右上へ抜けて消える。本体は引っ張られた分だけわずかに動いて戻り、丸で囲んだ「済」の印が押される。めくれるまでは速く出て止まり、引き取られるところは加速して去る。時間は切れてから半券が引き取られるまでの長さ。',
     setup: (stage, ctx) => buttonDemo(stage, ctx, {
       html: `<button class="demo-btn tk" aria-label="チケットをもぎる">
-          <span class="tk-main"><small>OPEN 18:00</small><strong>A列 12番</strong><span class="tk-stamp" aria-hidden="true">入場済み</span></span>
+          <span class="tk-main"><small>OPEN 18:00</small><strong>A列 12番</strong><span class="tk-stamp" aria-hidden="true">済</span></span>
           <span class="tk-stub"><small>半券</small></span>
         </button>`,
       play: ({ btn, a }) => [
